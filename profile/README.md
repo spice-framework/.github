@@ -7,8 +7,8 @@ explicit dependencies, and a small runtime.
 
 ## Repositories
 
-- [`spice`](https://github.com/StevenBuglione/spice) is the current canonical
-  source while its transfer into this organization is verified.
+- [`spice`](https://github.com/spice-framework/spice) owns the framework runtime,
+  compiler, command-line tools, examples, and current editor integrations.
 - [`development`](https://github.com/spice-framework/development) owns
   cross-repository workspace, compatibility, and coordinated verification
   tooling.

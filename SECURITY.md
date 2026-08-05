@@ -5,8 +5,7 @@
 Do not open a public issue for a suspected vulnerability. Use GitHub's private
 vulnerability reporting on the affected Spice repository. If repository
 routing is unclear, report it privately through
-`spice-framework/spice` after that repository becomes canonical; during the
-migration, use `StevenBuglione/spice`.
+`spice-framework/spice`.
 
 Include affected versions or commits, reproduction steps, expected impact,
 and any known mitigations. Maintainers will acknowledge the report, establish
