@@ -9,6 +9,9 @@ explicit dependencies, and a small runtime.
 
 - [`spice`](https://github.com/spice-framework/spice) owns the framework runtime,
   compiler, command-line tools, examples, and the current GoLand integration.
+- [`petclinic`](https://github.com/spice-framework/petclinic) is the standalone
+  Spring Petclinic reference application, with generated in-memory, PostgreSQL,
+  and MySQL targets and clean-room verification on all supported host platforms.
 - [`zed`](https://github.com/spice-framework/zed) owns the independently
   versioned Zed extension that launches Spice's shared language server.
 - [`development`](https://github.com/spice-framework/development) owns
@@ -18,8 +21,8 @@ explicit dependencies, and a small runtime.
   governance and reusable verification workflows.
 
 Further editor integrations, reference applications, and external-service
-starters will appear here only after each one has an independent gate and a
-clean-room consumer. A planned repository is not advertised as released
+starters will appear here only after each one has an independent gate and
+clean-room evidence. A planned repository is not advertised as released
 functionality.
 
 ## Engineering principles
