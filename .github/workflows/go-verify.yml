@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: .
+      cache:
+        description: Enable setup-go module and build caching.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -35,7 +40,7 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ inputs.go-version }}
-          cache: true
+          cache: ${{ inputs.cache }}
           cache-dependency-path: ${{ inputs.module-directory }}/go.sum
       - name: Require tidy module files
         working-directory: ${{ inputs.module-directory }}
@@ -64,7 +69,7 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ inputs.go-version }}
-          cache: true
+          cache: ${{ inputs.cache }}
           cache-dependency-path: ${{ inputs.module-directory }}/go.sum
       - name: Reproduce vendor tree
         working-directory: ${{ inputs.module-directory }}
