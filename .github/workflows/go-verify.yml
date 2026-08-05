@@ -1,0 +1,78 @@
+name: Reusable Go verification
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Exact Go patch release.
+        required: false
+        type: string
+        default: 1.26.5
+      module-directory:
+        description: Repository-relative Go module root.
+        required: false
+        type: string
+        default: .
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Go ${{ inputs.go-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+          cache-dependency-path: ${{ inputs.module-directory }}/go.sum
+      - name: Require tidy module files
+        working-directory: ${{ inputs.module-directory }}
+        run: go mod tidy -diff
+      - name: Vet packages
+        working-directory: ${{ inputs.module-directory }}
+        run: go vet ./...
+      - name: Run shuffled tests
+        working-directory: ${{ inputs.module-directory }}
+        run: go test -shuffle=on -count=1 ./...
+      - name: Run race tests
+        working-directory: ${{ inputs.module-directory }}
+        run: go test -race -shuffle=on -count=1 ./...
+      - name: Build trimpath packages
+        working-directory: ${{ inputs.module-directory }}
+        run: go build -trimpath ./...
+
+  vendor-offline:
+    name: Vendor and offline proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+          cache-dependency-path: ${{ inputs.module-directory }}/go.sum
+      - name: Reproduce vendor tree
+        working-directory: ${{ inputs.module-directory }}
+        run: go mod vendor
+      - name: Require committed vendor consistency
+        run: git diff --exit-code -- ${{ inputs.module-directory }}/go.mod ${{ inputs.module-directory }}/go.sum ${{ inputs.module-directory }}/vendor
+      - name: Test without module downloads
+        working-directory: ${{ inputs.module-directory }}
+        env:
+          GOPROXY: "off"
+        run: go test -mod=vendor -count=1 ./...

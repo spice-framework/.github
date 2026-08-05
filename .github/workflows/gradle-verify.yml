@@ -1,0 +1,46 @@
+name: Reusable Gradle verification
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: Exact Java feature release.
+        required: false
+        type: string
+        default: "25"
+      project-directory:
+        description: Repository-relative Gradle project root.
+        required: false
+        type: string
+        default: .
+      tasks:
+        description: Space-separated repository-owned verification tasks.
+        required: false
+        type: string
+        default: clean check build
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Gradle verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+      - name: Run repository verification
+        working-directory: ${{ inputs.project-directory }}
+        run: ./gradlew --no-daemon --stacktrace ${{ inputs.tasks }}
+      - name: Require reproducible metadata
+        run: git diff --exit-code

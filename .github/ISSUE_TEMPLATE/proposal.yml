@@ -1,0 +1,32 @@
+name: Design proposal
+description: Propose a focused framework or ecosystem change.
+title: "proposal: "
+labels: ["proposal", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Developer problem
+      description: Describe the concrete user problem without assuming a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Proposed contract
+      description: Include compatibility, security, ownership, and generated-code effects.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and tradeoffs
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Acceptance evidence
+      description: Tests, executable workflow, benchmarks, and documentation required.
+    validations:
+      required: true

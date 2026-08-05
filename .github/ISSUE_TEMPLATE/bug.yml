@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible Spice defect.
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not disclose vulnerabilities here; use private vulnerability reporting.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observed and expected behavior
+      description: Explain what happened and what should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include valid Go source, generated freshness status, and exact commands.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Spice artifacts, Go version, OS, and architecture.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      render: text
+    validations:
+      required: true

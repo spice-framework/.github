@@ -1,0 +1,29 @@
+name: Organization workflow verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: organization-workflows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntax:
+    name: Validate repository files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Reject trailing whitespace
+        run: git grep -nI -E '[[:blank:]]+$' -- . ':!LICENSE' && exit 1 || test $? -eq 1
+      - name: Validate YAML syntax
+        run: >-
+          ruby -e 'require "yaml"; Dir["**/*.{yml,yaml}"].each {
+          |path| YAML.safe_load_file(path, aliases: true) }'
