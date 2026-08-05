@@ -8,16 +8,19 @@ explicit dependencies, and a small runtime.
 ## Repositories
 
 - [`spice`](https://github.com/spice-framework/spice) owns the framework runtime,
-  compiler, command-line tools, examples, and current editor integrations.
+  compiler, command-line tools, examples, and the current GoLand integration.
+- [`zed`](https://github.com/spice-framework/zed) owns the independently
+  versioned Zed extension that launches Spice's shared language server.
 - [`development`](https://github.com/spice-framework/development) owns
   cross-repository workspace, compatibility, and coordinated verification
   tooling.
 - [`.github`](https://github.com/spice-framework/.github) owns organization
   governance and reusable verification workflows.
 
-Editor integrations, reference applications, and external-service starters
-will appear here only after each one has an independent gate and a clean-room
-consumer. A planned repository is not advertised as released functionality.
+Further editor integrations, reference applications, and external-service
+starters will appear here only after each one has an independent gate and a
+clean-room consumer. A planned repository is not advertised as released
+functionality.
 
 ## Engineering principles
 
