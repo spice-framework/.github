@@ -2,12 +2,7 @@
   <img src="assets/spice-framework-hero.png" alt="Spice Framework — Go-native application development. Compile-time wiring. Deterministic Go. No runtime magic." width="100%">
 </p>
 
-<h2 align="center">Build modular Go services without runtime magic.</h2>
-
-<p align="center">
-  Spice keeps application source valid Go, validates the dependency graph at
-  compile time, and emits deterministic Go you can inspect, commit, and debug.
-</p>
+<p><sub><strong>START HERE</strong></sub></p>
 
 <table>
   <tr>
