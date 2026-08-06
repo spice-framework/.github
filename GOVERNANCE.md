@@ -43,6 +43,11 @@ by the compatibility catalog in `spice-framework/development`; matching version
 numbers across repositories are not assumed to be compatible. Pre-1.0 APIs may
 change only with migration notes and an updated compatibility declaration.
 
+Library repositories use the organization-owned reusable release workflow.
+The caller owns its reviewed public trust anchor and GitHub environment secret;
+the central signer and independently implemented verifier must both accept the
+exact tagged commit before publication. Maintainers never commit private keys.
+
 ## Changes to governance
 
 Governance changes are public commits in this repository. Material changes
