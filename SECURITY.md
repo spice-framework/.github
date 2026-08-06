@@ -52,6 +52,12 @@ repositories' vendor trees, network-disabled Go settings, isolated build/module
 caches, and `-trimpath`. Fresh candidate checkouts remain inert inputs after the
 uncredentialed validation phase.
 
+The uncredentialed candidate-validation job may authenticate the exact
+committed module graph through Go's public proxy and checksum database. It has
+no secrets or release authority, and private-module exceptions are cleared.
+Trusted renderer, signer, and verifier builds remain vendor-only and
+network-disabled.
+
 The workflow admits only tagged commits that descend from fetched `origin/main`.
 Its public anchor path must be clean and repository-relative, resolve without a
 symlink in any component, identify an exact `100644` Git blob in the tagged

@@ -43,8 +43,11 @@ signs with `contents:read`, independently verifies using only the public anchor,
 and gives `contents:write` only to the final publishing job. That job receives
 only the independently verified five-artifact set.
 
-Candidate-owned checks execute only in the uncredentialed validation job. The
-trusted planning, signing, verification, and publishing jobs use fresh candidate
+Candidate-owned checks execute only in the uncredentialed validation job. That
+job has no secrets or release authority and may resolve the exact committed
+module graph only through `proxy.golang.org` with the public checksum database;
+private-module exceptions are cleared explicitly. The trusted planning,
+signing, verification, and publishing jobs use fresh candidate
 checkouts strictly as inert source/Git input; they never run a candidate-selected
 `go tool`, Make target, script, generated binary, or vendored implementation.
 Every phase also requires the tagged commit to be an ancestor of fetched

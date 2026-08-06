@@ -79,6 +79,15 @@ def main() -> None:
         "candidate checks must run in uncredentialed validation",
     )
     require(
+        "GOPROXY: https://proxy.golang.org" in validate
+        and "GOSUMDB: sum.golang.org" in validate,
+        "uncredentialed candidate checks must authenticate exact public modules",
+    )
+    require(
+        'GOPRIVATE: ""' in validate and 'GONOSUMDB: ""' in validate,
+        "candidate validation must not inherit private module exceptions",
+    )
+    require(
         "SPICE_LIBRARY_RELEASE_SIGNING_KEY" not in validate,
         "validation must not receive the private key",
     )
@@ -89,6 +98,10 @@ def main() -> None:
     require(
         "make -C candidate" not in plan + sign + verify + publish,
         "candidate commands must not run after validation",
+    )
+    require(
+        "GOPROXY: https://proxy.golang.org" not in plan + sign + verify + publish,
+        "trusted release-authority jobs must remain network-disabled",
     )
 
     require("needs: validate" in plan, "trusted planning must follow candidate validation")

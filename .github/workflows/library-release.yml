@@ -89,6 +89,13 @@ jobs:
         env:
           GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
           GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
+          # Candidate validation has no secrets or release authority. Its exact
+          # module graph may use the public Go proxy/checksum service; every
+          # trusted planning, signing, and verification build remains offline.
+          GOPRIVATE: ""
+          GONOSUMDB: ""
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
         run: make -C candidate verify-release
 
   plan:
