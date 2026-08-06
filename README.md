@@ -14,3 +14,7 @@ least-privilege verification workflows for Spice repositories.
 Third-party actions are pinned to immutable commits. Repository-specific gates
 remain responsible for product integration, generated freshness, real-service,
 editor UI, compatibility, and release evidence.
+
+Reusable workflows expose one stable `Required CI` result after all matrix and
+offline jobs finish. Checkout credentials are never persisted, so verification
+jobs cannot accidentally reuse the workflow token for Git mutations.
