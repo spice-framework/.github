@@ -20,6 +20,14 @@ Reusable workflows expose one stable `Required CI` result after all matrix and
 offline jobs finish. Checkout credentials are never persisted, so verification
 jobs cannot accidentally reuse the workflow token for Git mutations.
 
+The reusable Go matrix is also the real macOS execution boundary: its
+`macos-latest` job runs tidy, vet, shuffled tests, race tests, and a trimpath
+build. Local `GOOS=darwin` cross-compilation is useful compile evidence but does
+not replace that runner for race, process, signal, terminal, or runtime claims.
+If hosted jobs are queued by the organization billing/policy state, they remain
+an unfinished nonblocking mirror; repository-owned local verification is still
+the delivery gate and nobody may report the queued jobs as passed.
+
 The library release workflow requires an exact Git tag and a reviewed public
 trust anchor at `security/release/ed25519-public.pem` (or the explicit
 `trusted_public_key` input). A candidate's own pinned and vendored tools remain
@@ -107,3 +115,12 @@ applications, starters, development tooling, and organization workflows live
 in their own independently gated repositories. The public organization profile
 lists the current boundaries without treating compatibility pins as moving
 repository-head versions.
+
+The Go workflow applies unchanged to `spice-agent`,
+`spice-agent-provider-openai`, `spice-agent-tools-coding`, `spice-agent-tui`,
+and `spice-agent-coding`. Their exact 2026-08-06 Phase 0 source commits, selected
+module pins, dependency-ordered local command, and macOS evidence limits are
+recorded in the development repository's
+[`spice-agent-phase-0.md`](https://github.com/spice-framework/development/blob/main/docs/spice-agent-phase-0.md).
+That compatibility snapshot links to, but does not duplicate, the canonical
+Spice Agent implementation ledger.

@@ -109,6 +109,11 @@
   Compatibility declarations and reference-application matrices are pinned consumer contracts,
   not aliases for the latest repository heads. Check each repository's Releases page before
   depending on a component.
+
+  The dated <a href="https://github.com/spice-framework/development/blob/main/docs/spice-agent-phase-0.md">Spice Agent Phase 0 compatibility snapshot</a>
+  records exact commits for all five agent repositories, their selected module pins,
+  dependency-ordered local verification, and the limits of macOS cross-compilation.
+  The canonical implementation ledger remains in <a href="https://github.com/spice-framework/spice-agent/tree/main/docs/implementation"><code>spice-agent</code></a>.
 </details>
 
 <p align="center">

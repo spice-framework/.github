@@ -36,6 +36,13 @@ Maintainers must:
 - avoid merging generated, vendored, or release artifacts that are not
   mechanically reproducible.
 
+Cross-repository checks follow the dependency graph in topological waves:
+independent ready repositories may run concurrently, but a distribution cannot
+be treated as verified before its selected SDK and extension dependencies.
+Hosted Actions are a durability and platform mirror. A queued job caused by an
+organization billing or policy restriction is unfinished evidence, not a local
+delivery blocker and not a green result.
+
 ## Releases
 
 Each repository versions its own artifact. Coordinated releases are described
@@ -61,6 +68,12 @@ fresh candidate checkout as inert input. Updating either trusted tool commit is
 a security-sensitive governance change.
 Maintainers never commit private keys, generate production keys in automation,
 or pass a private key to validation, verification, or publication jobs.
+
+Protected-environment approval is intentionally separate from cryptographic
+key custody. Reviewers approve the exact tag, commit, public anchor, and trusted
+workflow pin; the workflow receives only the named repository secret after that
+approval. No approval authorizes a moving branch, a replacement key, or a
+candidate-provided signer.
 
 ## Changes to governance
 
