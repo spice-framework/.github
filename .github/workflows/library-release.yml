@@ -464,11 +464,16 @@ jobs:
 
           read -r direct_before target_before <<< "$(resolve_remote_tag)"
           test "$target_before" = "$GITHUB_SHA"
+          release_flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/library-release-verified"/* \
             --verify-tag \
             --generate-notes \
-            --fail-on-no-commits
+            --fail-on-no-commits \
+            "${release_flags[@]}"
           read -r direct_after target_after <<< "$(resolve_remote_tag)"
           test "$target_after" = "$GITHUB_SHA"
           test "$direct_after" = "$direct_before"

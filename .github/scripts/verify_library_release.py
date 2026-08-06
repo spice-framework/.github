@@ -215,6 +215,12 @@ def main() -> None:
         'test "$direct_after" = "$direct_before"' in publish,
         "direct remote tag object must remain stable through publication",
     )
+    require(
+        'if [[ "$GITHUB_REF_NAME" == *-* ]]; then' in publish
+        and "release_flags+=(--prerelease)" in publish
+        and '"${release_flags[@]}"' in publish,
+        "semantic-version prereleases must be published as GitHub prereleases",
+    )
 
 
 if __name__ == "__main__":

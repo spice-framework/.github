@@ -60,6 +60,8 @@ exact `100644` blob in that commit, contain no symlink component, and match its
 committed bytes. Publication resolves lightweight and annotated remote tags
 immediately before and after creating the release and requires both targets to
 remain the exact workflow commit and the direct tag object to remain unchanged.
+Tags containing a canonical semantic-version prerelease suffix are published
+as GitHub prereleases, so previews never replace the latest stable release.
 The publishing CLI is explicitly bound to the caller repository even though the
 workflow's candidate checkout uses a non-root path.
 Changing either trusted tool commit is a security-sensitive workflow change and
