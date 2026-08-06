@@ -1,87 +1,127 @@
-# Spice Framework
+<p align="center">
+  <img src="assets/spice-framework-hero.png" alt="Spice Framework — Go-native application development. Compile-time wiring. Deterministic Go. No runtime magic." width="100%">
+</p>
 
-Spice is a Go-native application framework for modular production services.
-It pursues the practical developer outcomes of Spring Boot and Spring Modulith
-through valid Go source, compile-time validation, deterministic generated Go,
-explicit dependencies, and a small runtime.
+<h2 align="center">Build modular Go services without runtime magic.</h2>
 
-## Repositories
+<p align="center">
+  Spice keeps application source valid Go, validates the dependency graph at
+  compile time, and emits deterministic Go you can inspect, commit, and debug.
+</p>
 
-- [`spice`](https://github.com/spice-framework/spice) owns the framework runtime
-  and public SDK contracts.
-- [`toolchain`](https://github.com/spice-framework/toolchain) owns the compiler,
-  deterministic generator, CLI, LSP, independent library-release verifier, and
-  enforced compiler/generator/development-loop performance budgets.
-- [`spice-agent`](https://github.com/spice-framework/spice-agent) owns the
-  experimental Spice-native agent kernel, public agent SDK, daemon/client
-  protocols, runtime-plugin host, and conformance contracts. Its static
-  extension graph is the generated Spice bean graph, never a parallel
-  container.
-- [`spice-agent-provider-openai`](https://github.com/spice-framework/spice-agent-provider-openai),
-  [`spice-agent-tools-coding`](https://github.com/spice-framework/spice-agent-tools-coding),
-  and [`spice-agent-tui`](https://github.com/spice-framework/spice-agent-tui)
-  own independently versioned OpenAI Responses, coding-tool, and terminal UI
-  extensions.
-- [`spice-agent-coding`](https://github.com/spice-framework/spice-agent-coding)
-  is the generated SDK-first reference distribution and end-to-end
-  architecture proof; it is not yet advertised as a stable daily-use coding
-  product.
-- [`petclinic`](https://github.com/spice-framework/petclinic) is the standalone
-  Spring Petclinic reference application, with generated in-memory, PostgreSQL,
-  and MySQL targets plus explicit minimum/current core and toolchain
-  compatibility verification.
-- [`commerce`](https://github.com/spice-framework/commerce) is the
-  production-shaped modular reference application, with explicit
-  minimum/current compatibility verification across generated DI, HTTP,
-  security, data, and mail workflows.
-- [`zed`](https://github.com/spice-framework/zed) owns the independently
-  versioned Zed extension that launches Spice's shared language server.
-- [`goland`](https://github.com/spice-framework/goland) owns the independently
-  versioned GoLand plugin, including valid-Go annotation editing, zero-width
-  concealment, navigation, syntax coloring, package Run/Debug, and installed-IDE
-  visual gates on Windows and Linux.
-- [`starter-smtp`](https://github.com/spice-framework/starter-smtp),
-  [`starter-postgres`](https://github.com/spice-framework/starter-postgres),
-  [`starter-mysql`](https://github.com/spice-framework/starter-mysql), and
-  [`starter-redis`](https://github.com/spice-framework/starter-redis) own mail,
-  relational-data, and cache integrations outside core.
-- [`starter-otel`](https://github.com/spice-framework/starter-otel),
-  [`starter-oauth2client`](https://github.com/spice-framework/starter-oauth2client),
-  and [`starter-oidc`](https://github.com/spice-framework/starter-oidc) own
-  observability and OAuth2/OIDC integrations.
-- [`starter-websocket`](https://github.com/spice-framework/starter-websocket),
-  [`starter-grpc`](https://github.com/spice-framework/starter-grpc), and
-  [`starter-kafka`](https://github.com/spice-framework/starter-kafka) own
-  independently gated real-time, RPC, and broker integrations.
-- [`development`](https://github.com/spice-framework/development) owns
-  cross-repository workspace, compatibility, coordinated verification, and the
-  central deterministic starter-release renderer/signer.
-- [`.github`](https://github.com/spice-framework/.github) owns organization
-  governance and reusable verification and signed-library-release workflows.
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <strong><a href="https://github.com/spice-framework/spice">Framework</a></strong><br>
+      <sub>Runtime &amp; public SDK</sub>
+    </td>
+    <td align="center" width="25%">
+      <strong><a href="https://github.com/spice-framework/toolchain">Toolchain</a></strong><br>
+      <sub>Compiler, CLI &amp; LSP</sub>
+    </td>
+    <td align="center" width="25%">
+      <strong><a href="https://github.com/spice-framework/spice/blob/main/docs/getting-started.md">Quickstart</a></strong><br>
+      <sub>Create your first app</sub>
+    </td>
+    <td align="center" width="25%">
+      <strong><a href="https://github.com/spice-framework/spice/blob/main/ROADMAP.md">Roadmap</a></strong><br>
+      <sub>See what is next</sub>
+    </td>
+  </tr>
+</table>
 
-Each active starter has its own product gate and real-system acceptance where
-applicable. All ten use the same immutable central source-release workflow,
-distinct committed Ed25519 trust anchors, separate protected signing and
-publication approvals, and restricted immutable release tags; copied local
-release builders have been retired. This is a statement about repository and
-release-infrastructure readiness. Consult each repository's Releases page for
-what is actually published; an in-flight preview run is not advertised as a
-completed release.
+## Core repositories
 
-## Engineering principles
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3><a href="https://github.com/spice-framework/spice">spice</a></h3>
+      <p>The framework runtime and public SDK contracts for modular production services.</p>
+      <p><sub>VALID GO · SMALL RUNTIME</sub></p>
+    </td>
+    <td width="33%" valign="top">
+      <h3><a href="https://github.com/spice-framework/toolchain">toolchain</a></h3>
+      <p>The compiler, deterministic generator, CLI, LSP, and independent release verifier.</p>
+      <p><sub>COMPILE TIME · DETERMINISTIC</sub></p>
+    </td>
+    <td width="33%" valign="top">
+      <h3><a href="https://github.com/spice-framework/spice-agent">spice-agent</a></h3>
+      <p>The experimental Spice-native agent kernel, public SDK, and generated extension graph.</p>
+      <p><sub>EXPERIMENTAL · GENERATED GRAPH</sub></p>
+    </td>
+  </tr>
+</table>
 
-- Application annotations remain valid Go comments; ordinary Go tooling keeps
-  working without an editor plugin.
-- Generated behavior is committed, inspectable Go and requires no compiler at
-  runtime.
-- Dependency injection is compile-time, typed, explicit, and reflection-free.
-- Core stays standard-library-first; integrations remain isolated and opt in.
-- Security defaults fail closed, generation is non-destructive, and normal
-  analysis never downloads dependencies.
-- Compatibility and maturity are evidence-backed rather than inferred from an
-  API name or roadmap entry.
+## Ecosystem
 
-Spice is pre-1.0. Compatibility declarations and reference-application matrices
-are pinned consumer contracts, not aliases for the latest repository heads.
-Review both the declared compatibility and published release before depending
-on a component, and use private vulnerability reporting for security issues.
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>Starters</h3>
+      <p>
+        <a href="https://github.com/spice-framework/starter-postgres">PostgreSQL</a> ·
+        <a href="https://github.com/spice-framework/starter-mysql">MySQL</a> ·
+        <a href="https://github.com/spice-framework/starter-redis">Redis</a> ·
+        <a href="https://github.com/spice-framework/starter-smtp">SMTP</a>
+      </p>
+      <p>
+        <a href="https://github.com/spice-framework/starter-otel">OpenTelemetry</a> ·
+        <a href="https://github.com/spice-framework/starter-oauth2client">OAuth2 client</a> ·
+        <a href="https://github.com/spice-framework/starter-oidc">OIDC</a>
+      </p>
+      <p>
+        <a href="https://github.com/spice-framework/starter-websocket">WebSocket</a> ·
+        <a href="https://github.com/spice-framework/starter-grpc">gRPC</a> ·
+        <a href="https://github.com/spice-framework/starter-kafka">Kafka</a>
+      </p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>Developer tools</h3>
+      <p><a href="https://github.com/spice-framework/goland">GoLand</a><br><sub>Annotation editing, navigation, run &amp; debug</sub></p>
+      <p><a href="https://github.com/spice-framework/zed">Zed</a><br><sub>Shared Spice language-server integration</sub></p>
+      <p><a href="https://github.com/spice-framework/development">Development</a><br><sub>Cross-repository compatibility and release tooling</sub></p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>Reference apps</h3>
+      <p><a href="https://github.com/spice-framework/petclinic">Petclinic</a><br><sub>Standalone Spring Petclinic proof</sub></p>
+      <p><a href="https://github.com/spice-framework/commerce">Commerce</a><br><sub>Production-shaped modular application</sub></p>
+      <p><a href="https://github.com/spice-framework/spice-agent-coding">Spice Agent Coding</a><br><sub>SDK-first end-to-end agent proof</sub></p>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td align="center" width="25%"><strong>Valid Go source</strong><br><sub>Ordinary tooling keeps working</sub></td>
+    <td align="center" width="25%"><strong>Committed generated Go</strong><br><sub>No compiler at runtime</sub></td>
+    <td align="center" width="25%"><strong>Explicit dependencies</strong><br><sub>Typed and reflection-free</sub></td>
+    <td align="center" width="25%"><strong>Pre-1.0</strong><br><sub>Evidence-backed maturity</sub></td>
+  </tr>
+</table>
+
+<details>
+  <summary><strong>Agent extensions and the complete repository map</strong></summary>
+  <br>
+
+  The independently versioned agent extensions are
+  <a href="https://github.com/spice-framework/spice-agent-provider-openai">OpenAI Responses</a>,
+  <a href="https://github.com/spice-framework/spice-agent-tools-coding">coding tools</a>, and
+  <a href="https://github.com/spice-framework/spice-agent-tui">the terminal UI</a>.
+  The <a href="https://github.com/spice-framework/.github"><code>.github</code></a>
+  repository owns organization governance and reusable verification and signed-release workflows.
+
+  Every active starter has its own product gate and real-system acceptance where applicable.
+  Compatibility declarations and reference-application matrices are pinned consumer contracts,
+  not aliases for the latest repository heads. Check each repository's Releases page before
+  depending on a component.
+</details>
+
+<p align="center">
+  <a href="https://github.com/spice-framework/spice/blob/main/docs/getting-started.md"><strong>Get started</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/spice-framework/spice/tree/main/docs"><strong>Read the docs</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/spice-framework/.github/blob/main/CONTRIBUTING.md"><strong>Contribute</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/spice-framework/.github/blob/main/SECURITY.md"><strong>Security</strong></a>
+</p>
