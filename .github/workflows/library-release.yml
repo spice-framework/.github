@@ -12,6 +12,10 @@ on:
         required: false
         type: string
         default: security/release/ed25519-public.pem
+    secrets:
+      SPICE_LIBRARY_RELEASE_SIGNING_KEY:
+        description: Caller-owned Ed25519 private key for this repository.
+        required: true
 
 # Grant nothing by default. Each phase receives only the capability it needs.
 permissions: {}

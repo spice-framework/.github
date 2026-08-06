@@ -29,17 +29,21 @@ documented secure defaults.
 Each publishing repository must use a maintainer-generated Ed25519 key whose
 private half remains user-owned. Commit only the reviewed public PEM at
 `security/release/ed25519-public.pem` (or pass its repository-relative path as
-the reusable workflow input). Store the private material only in the protected
-`release-signing` environment as `SPICE_LIBRARY_RELEASE_SIGNING_KEY`. Require
-trusted-reviewer approval for that environment.
+the reusable workflow input). Store the private material as the repository
+Actions secret `SPICE_LIBRARY_RELEASE_SIGNING_KEY` and map only that named
+secret into the reusable workflow. GitHub does not make a caller environment
+secret available to a cross-repository reusable workflow job, so the secret
+must not be stored only on the environment. Never use `secrets: inherit`.
+Require trusted-reviewer approval for the `release-signing` environment that
+gates the called signing job.
 
 Create a separate protected `release-publish` environment with trusted-reviewer
 approval and no secrets. Validation runs before either environment, signing has
 only `contents:read`, independent verification receives only signed artifacts
 and the public anchor, and publication alone receives `contents:write`. Never
-put the private key in an organization or repository secret, pass it through a
-`workflow_call`, expose it to verification or publication, or generate a
-production key in CI.
+put the private key in an organization secret, expose it to validation,
+verification, or publication, or generate a production key in CI. The explicit
+one-secret `workflow_call` mapping is the only supported transfer boundary.
 
 The release workflow must not execute a signer or verifier selected by the
 tagged candidate. Candidate-owned checks run in a separate uncredentialed job

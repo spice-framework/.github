@@ -45,9 +45,12 @@ change only with migration notes and an updated compatibility declaration.
 
 Library repositories use the organization-owned reusable release workflow.
 The caller owns its reviewed public trust anchor and user-owned signing key.
-The private key exists only as the `SPICE_LIBRARY_RELEASE_SIGNING_KEY` secret in
-the protected `release-signing` environment; it must not be an organization,
-repository, workflow-call, or `release-publish` secret. A separate protected
+The private key exists only as the repository Actions secret
+`SPICE_LIBRARY_RELEASE_SIGNING_KEY` and is passed through the reusable workflow's
+required one-secret contract; unrelated secrets are never inherited. GitHub
+does not expose a caller environment secret to a cross-repository reusable
+workflow job. The protected `release-signing` environment therefore remains the
+human approval gate but does not own the key. A separate protected
 `release-publish` environment controls the only job with `contents:write` and
 must contain no private key. The central signer and independently implemented
 verifier are built offline from separately checked-out immutable governance

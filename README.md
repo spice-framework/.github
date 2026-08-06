@@ -29,10 +29,14 @@ Instead, this workflow builds the renderer/signer from the separate immutable
 `4c308d1b9fda11cb2b045f2e0d9e1616d32d007d` and the verifier from the separate
 immutable `spice-framework/toolchain` commit
 `71211498297c9ab77cc05c4844db5e64e0170896`, offline and without shared Go
-caches. Each caller must create two protected environments:
+caches. GitHub does not make a caller environment secret available to a job in
+a cross-repository reusable workflow. Each caller therefore stores the key as
+the repository Actions secret `SPICE_LIBRARY_RELEASE_SIGNING_KEY` and passes
+only that named secret through `workflow_call`. The called signing job remains
+behind the caller repository's protected environment approval. Each caller
+must create two protected environments:
 
-- `release-signing` owns the required
-  `SPICE_LIBRARY_RELEASE_SIGNING_KEY` environment secret and grants no write
+- `release-signing` approves access to the signing job and grants no write
   permission;
 - `release-publish` approves publication and contains no private key or other
   release secret.
@@ -74,10 +78,13 @@ jobs:
     uses: spice-framework/.github/.github/workflows/library-release.yml@<40-character-commit>
     with:
       module: github.com/spice-framework/<repository>
+    secrets:
+      SPICE_LIBRARY_RELEASE_SIGNING_KEY: ${{ secrets.SPICE_LIBRARY_RELEASE_SIGNING_KEY }}
 ```
 
 Before enabling the caller, maintainers must create both environments, limit
-them to release tags, and configure trusted required reviewers. GitHub cannot
-raise permissions inside a called workflow, so omitting the caller's
-`contents:write` ceiling prevents publication; it does not give the validation,
-signing, or verification jobs write access.
+them to release tags, configure trusted required reviewers, and create the
+repository Actions secret. Pass the one named secret explicitly; never use
+`secrets: inherit`. GitHub cannot raise permissions inside a called workflow,
+so omitting the caller's `contents:write` ceiling prevents publication; it does
+not give the validation, signing, or verification jobs write access.

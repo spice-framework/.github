@@ -26,6 +26,7 @@ def job(text: str, name: str, next_name: str | None) -> str:
 
 def main() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
+    workflow_contract = text[: text.index("\njobs:")]
     validate = job(text, "validate", "plan")
     plan = job(text, "plan", "sign")
     sign = job(text, "sign", "verify")
@@ -46,8 +47,15 @@ def main() -> None:
     require(text.count("cache: false") == 4, "every Go job must disable action caching")
     require(text.count("contents: write") == 1, "only publication may write contents")
     require(
-        text.count("SPICE_LIBRARY_RELEASE_SIGNING_KEY") == 1,
-        "private-key secret must have one consumer",
+        "secrets:\n      SPICE_LIBRARY_RELEASE_SIGNING_KEY:\n"
+        "        description: Caller-owned Ed25519 private key for this repository.\n"
+        "        required: true" in workflow_contract,
+        "workflow call must require the one named caller-owned signing secret",
+    )
+    require("secrets: inherit" not in text, "release workflow must not inherit unrelated secrets")
+    require(
+        text.count("${{ secrets.SPICE_LIBRARY_RELEASE_SIGNING_KEY }}") == 1,
+        "private-key secret must have one signing-job consumer",
     )
     require(
         text.count('[[ "$mode" == 100644 && "$object_type" == blob ]]') == 4,
@@ -90,6 +98,10 @@ def main() -> None:
     require(
         "SPICE_LIBRARY_RELEASE_SIGNING_KEY" not in validate,
         "validation must not receive the private key",
+    )
+    require(
+        "SPICE_LIBRARY_RELEASE_SIGNING_KEY" not in plan,
+        "planning must not receive the private key",
     )
     require(
         "name: library-release-plan" not in validate,
