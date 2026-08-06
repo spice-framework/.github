@@ -29,3 +29,15 @@ jobs:
         run: >-
           ruby -e 'require "yaml"; Dir["**/*.{yml,yaml}"].each {
           |path| YAML.safe_load_file(path, aliases: true) }'
+
+  required:
+    name: Required CI
+    if: always()
+    needs: [syntax]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require repository-file validation
+        env:
+          SYNTAX_RESULT: ${{ needs.syntax.result }}
+        run: test "$SYNTAX_RESULT" = success
