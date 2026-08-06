@@ -26,9 +26,9 @@ trust anchor at `security/release/ed25519-public.pem` (or the explicit
 part of its local quality gate, but release authority never executes them.
 Instead, this workflow builds the renderer/signer from the separate immutable
 `spice-framework/development` commit
-`963bb6676069b0d4217bf22401e30482e3d05575` and the verifier from the separate
+`4c308d1b9fda11cb2b045f2e0d9e1616d32d007d` and the verifier from the separate
 immutable `spice-framework/toolchain` commit
-`a83d9b58034cfa1487828fd2b44d28115d987a81`, offline and without shared Go
+`71211498297c9ab77cc05c4844db5e64e0170896`, offline and without shared Go
 caches. Each caller must create two protected environments:
 
 - `release-signing` owns the required
@@ -52,7 +52,9 @@ Every phase also requires the tagged commit to be an ancestor of fetched
 exact `100644` blob in that commit, contain no symlink component, and match its
 committed bytes. Publication resolves lightweight and annotated remote tags
 immediately before and after creating the release and requires both targets to
-remain the exact workflow commit.
+remain the exact workflow commit and the direct tag object to remain unchanged.
+The publishing CLI is explicitly bound to the caller repository even though the
+workflow's candidate checkout uses a non-root path.
 Changing either trusted tool commit is a security-sensitive workflow change and
 requires callers to review and pin the resulting `.github` commit.
 

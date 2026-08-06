@@ -45,9 +45,9 @@ The release workflow must not execute a signer or verifier selected by the
 tagged candidate. Candidate-owned checks run in a separate uncredentialed job
 whose filesystem and outputs are not trusted as release authority. Planning and
 signing build `spice-dev` from immutable commit
-`963bb6676069b0d4217bf22401e30482e3d05575`; verification builds the independent
+`4c308d1b9fda11cb2b045f2e0d9e1616d32d007d`; verification builds the independent
 verifier from immutable commit
-`a83d9b58034cfa1487828fd2b44d28115d987a81`. Both builds use the trusted
+`71211498297c9ab77cc05c4844db5e64e0170896`. Both builds use the trusted
 repositories' vendor trees, network-disabled Go settings, isolated build/module
 caches, and `-trimpath`. Fresh candidate checkouts remain inert inputs after the
 uncredentialed validation phase.
@@ -59,4 +59,5 @@ commit, and match the checked-out bytes. These workflow checks supplement,
 rather than replace, protected environment reviewers and server-side tag rules.
 Publication also resolves both lightweight and annotated remote tag forms
 immediately before and after release creation and requires the peeled target to
-remain the exact workflow commit.
+remain the exact workflow commit and the direct tag object to remain unchanged.
+The publishing CLI is explicitly scoped to the caller repository.

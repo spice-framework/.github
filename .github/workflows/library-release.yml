@@ -22,8 +22,8 @@ env:
   GOSUMDB: "off"
   GOTOOLCHAIN: local
   GOWORK: "off"
-  TRUSTED_DEVELOPMENT_COMMIT: 963bb6676069b0d4217bf22401e30482e3d05575
-  TRUSTED_TOOLCHAIN_COMMIT: a83d9b58034cfa1487828fd2b44d28115d987a81
+  TRUSTED_DEVELOPMENT_COMMIT: 4c308d1b9fda11cb2b045f2e0d9e1616d32d007d
+  TRUSTED_TOOLCHAIN_COMMIT: 71211498297c9ab77cc05c4844db5e64e0170896
 
 concurrency:
   group: library-release-${{ github.repository }}-${{ github.ref }}
@@ -430,9 +430,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           resolve_remote_tag() {
-            local direct peeled refs
+            local direct peeled refs target
             refs="$(git -C candidate ls-remote --tags origin \
               "refs/tags/$GITHUB_REF_NAME" \
               "refs/tags/$GITHUB_REF_NAME^{}")"
@@ -441,16 +442,20 @@ jobs:
             [[ "$direct" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
             if [[ -n "$peeled" ]]; then
               [[ "$peeled" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
-              printf '%s\n' "$peeled"
-              return
+              target="$peeled"
+            else
+              target="$direct"
             fi
-            printf '%s\n' "$direct"
+            printf '%s %s\n' "$direct" "$target"
           }
 
-          test "$(resolve_remote_tag)" = "$GITHUB_SHA"
+          read -r direct_before target_before <<< "$(resolve_remote_tag)"
+          test "$target_before" = "$GITHUB_SHA"
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/library-release-verified"/* \
             --verify-tag \
             --generate-notes \
             --fail-on-no-commits
-          test "$(resolve_remote_tag)" = "$GITHUB_SHA"
+          read -r direct_after target_after <<< "$(resolve_remote_tag)"
+          test "$target_after" = "$GITHUB_SHA"
+          test "$direct_after" = "$direct_before"

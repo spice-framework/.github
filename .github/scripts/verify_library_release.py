@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 WORKFLOW = Path(".github/workflows/library-release.yml")
-DEVELOPMENT_COMMIT = "963bb6676069b0d4217bf22401e30482e3d05575"
-TOOLCHAIN_COMMIT = "a83d9b58034cfa1487828fd2b44d28115d987a81"
+DEVELOPMENT_COMMIT = "4c308d1b9fda11cb2b045f2e0d9e1616d32d007d"
+TOOLCHAIN_COMMIT = "71211498297c9ab77cc05c4844db5e64e0170896"
 
 
 def require(condition: bool, message: str) -> None:
@@ -171,8 +171,17 @@ def main() -> None:
         "publication must resolve lightweight and annotated remote tags",
     )
     require(
-        publish.count('test "$(resolve_remote_tag)" = "$GITHUB_SHA"') == 2,
-        "remote tag must be checked before and after publication",
+        "GH_REPO: ${{ github.repository }}" in publish,
+        "gh must target the caller repository outside its checkout",
+    )
+    require(
+        'test "$target_before" = "$GITHUB_SHA"' in publish
+        and 'test "$target_after" = "$GITHUB_SHA"' in publish,
+        "peeled remote tag target must be checked before and after publication",
+    )
+    require(
+        'test "$direct_after" = "$direct_before"' in publish,
+        "direct remote tag object must remain stable through publication",
     )
 
 
