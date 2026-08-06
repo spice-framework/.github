@@ -12,31 +12,30 @@ on:
         required: false
         type: string
         default: security/release/ed25519-public.pem
-    secrets:
-      release_signing_key:
-        description: Canonical PKCS#8 PEM or standard-base64 Ed25519 private key.
-        required: true
 
-permissions:
-  contents: write
+# Grant nothing by default. Each phase receives only the capability it needs.
+permissions: {}
 
 concurrency:
   group: library-release-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Verify, sign, authenticate, and publish
+  validate:
+    name: Validate exact release candidate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
+    permissions:
+      contents: read
     env:
       GOTOOLCHAIN: local
     steps:
-      - name: Check out exact tag
+      - name: Check out exact candidate commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.sha }}
       - name: Set up exact Go toolchain
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
@@ -48,30 +47,23 @@ jobs:
           MODULE: ${{ inputs.module }}
           PUBLIC_KEY: ${{ inputs.trusted_public_key }}
         run: |
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
           [[ "$GITHUB_REF_TYPE" == tag ]]
-          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          [[ "$GITHUB_REF_NAME" =~ $semver ]]
           [[ -n "$MODULE" ]]
           [[ "$PUBLIC_KEY" != /* && "$PUBLIC_KEY" != *..* ]]
           test -f "$PUBLIC_KEY"
+          test ! -L "$PUBLIC_KEY"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
-      - name: Verify release candidate
+      - name: Verify release candidate without credentials
         run: make verify-release
-      - name: Materialize external signing key
-        shell: bash
-        env:
-          RELEASE_SIGNING_KEY: ${{ secrets.release_signing_key }}
-        run: |
-          test -n "$RELEASE_SIGNING_KEY"
-          umask 077
-          printf '%s' "$RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/library-release.key"
-      - name: Build signed exact-commit artifacts
+      - name: Build the exact-commit release plan
         shell: bash
         env:
           GOFLAGS: -mod=vendor
           GOPROXY: "off"
           GOWORK: "off"
-          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
         run: |
           repository="${GITHUB_REPOSITORY#*/}"
           go tool github.com/spice-framework/development/cmd/spice-dev \
@@ -80,13 +72,113 @@ jobs:
             --repo="$repository" \
             --version="$GITHUB_REF_NAME" \
             > "$RUNNER_TEMP/library-release-plan.json"
+      - name: Transfer validated release plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: library-release-plan
+          path: ${{ runner.temp }}/library-release-plan.json
+          if-no-files-found: error
+          retention-days: 1
+
+  sign:
+    name: Sign validated artifacts
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release-signing
+    permissions:
+      contents: read
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: go.sum
+      - name: Revalidate exact candidate and public trust anchor
+        shell: bash
+        env:
+          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
+        run: |
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$PUBLIC_KEY" != /* && "$PUBLIC_KEY" != *..* ]]
+          test -f "$PUBLIC_KEY"
+          test ! -L "$PUBLIC_KEY"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+      - name: Receive validated release plan
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: library-release-plan
+          path: ${{ runner.temp }}/library-release-plan
+      - name: Materialize user-owned signing key
+        shell: bash
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.SPICE_LIBRARY_RELEASE_SIGNING_KEY }}
+        run: |
+          test -n "$RELEASE_SIGNING_KEY"
+          umask 077
+          printf '%s' "$RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/library-release.key"
+      - name: Sign exact-commit artifacts
+        shell: bash
+        env:
+          GOFLAGS: -mod=vendor
+          GOPROXY: "off"
+          GOWORK: "off"
+          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
+        run: |
           go tool github.com/spice-framework/development/cmd/spice-dev \
             library-release sign \
             --root=. \
-            --plan="$RUNNER_TEMP/library-release-plan.json" \
-            --output="$RUNNER_TEMP/library-release-artifacts" \
+            --plan="$RUNNER_TEMP/library-release-plan/library-release-plan.json" \
+            --output="$RUNNER_TEMP/library-release-signed" \
             --signing-key="$RUNNER_TEMP/library-release.key" \
             --trusted-public-key="$PUBLIC_KEY"
+      - name: Remove signing key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/library-release.key"
+      - name: Transfer signed artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: library-release-signed
+          path: ${{ runner.temp }}/library-release-signed/
+          if-no-files-found: error
+          retention-days: 1
+
+  verify:
+    name: Independently authenticate signed artifacts
+    needs: sign
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: go.sum
+      - name: Receive signed artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: library-release-signed
+          path: ${{ runner.temp }}/library-release-signed
       - name: Independently authenticate artifacts
         shell: bash
         env:
@@ -97,8 +189,12 @@ jobs:
           PUBLIC_KEY: ${{ inputs.trusted_public_key }}
         run: |
           repository="${GITHUB_REPOSITORY#*/}"
+          test -f "$PUBLIC_KEY"
+          test ! -L "$PUBLIC_KEY"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
           go tool github.com/spice-framework/toolchain/cmd/spice-library-release-verify \
-            -artifacts="$RUNNER_TEMP/library-release-artifacts" \
+            -artifacts="$RUNNER_TEMP/library-release-signed" \
             -root=. \
             -repository="$repository" \
             -source="https://github.com/$GITHUB_REPOSITORY" \
@@ -106,17 +202,46 @@ jobs:
             -version="$GITHUB_REF_NAME" \
             -commit="$GITHUB_SHA" \
             -trusted-public-key="$PUBLIC_KEY"
-      - name: Remove signing key
-        if: always()
+      - name: Transfer independently verified artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: library-release-verified
+          path: ${{ runner.temp }}/library-release-signed/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish independently verified artifacts
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Revalidate immutable tag target
         shell: bash
-        run: rm -f "$RUNNER_TEMP/library-release.key"
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+      - name: Receive only independently verified artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: library-release-verified
+          path: ${{ runner.temp }}/library-release-verified
       - name: Publish immutable-tag assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
-          "$RUNNER_TEMP/library-release-artifacts"/*
+          "$RUNNER_TEMP/library-release-verified"/*
           --verify-tag
           --generate-notes
           --fail-on-no-commits

@@ -23,3 +23,20 @@ module/tool supply chains, secret handling, request binding, authentication and
 authorization defaults, module boundary bypasses, external-service clients,
 and editor-applied source edits. Security features require negative tests and
 documented secure defaults.
+
+## Library signing custody
+
+Each publishing repository must use a maintainer-generated Ed25519 key whose
+private half remains user-owned. Commit only the reviewed public PEM at
+`security/release/ed25519-public.pem` (or pass its repository-relative path as
+the reusable workflow input). Store the private material only in the protected
+`release-signing` environment as `SPICE_LIBRARY_RELEASE_SIGNING_KEY`. Require
+trusted-reviewer approval for that environment.
+
+Create a separate protected `release-publish` environment with trusted-reviewer
+approval and no secrets. Validation runs before either environment, signing has
+only `contents:read`, independent verification receives only signed artifacts
+and the public anchor, and publication alone receives `contents:write`. Never
+put the private key in an organization or repository secret, pass it through a
+`workflow_call`, expose it to verification or publication, or generate a
+production key in CI.

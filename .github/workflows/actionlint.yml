@@ -24,7 +24,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Reject trailing whitespace
-        run: git grep -nI -E '[[:blank:]]+$' -- . ':!LICENSE' && exit 1 || test $? -eq 1
+        shell: bash
+        run: |
+          if git grep -nI -E '[[:blank:]]+$' -- . ':!LICENSE'; then
+            exit 1
+          fi
       - name: Validate YAML syntax
         run: >-
           ruby -e 'require "yaml"; Dir["**/*.{yml,yaml}"].each {

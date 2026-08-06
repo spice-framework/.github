@@ -44,9 +44,15 @@ numbers across repositories are not assumed to be compatible. Pre-1.0 APIs may
 change only with migration notes and an updated compatibility declaration.
 
 Library repositories use the organization-owned reusable release workflow.
-The caller owns its reviewed public trust anchor and GitHub environment secret;
-the central signer and independently implemented verifier must both accept the
-exact tagged commit before publication. Maintainers never commit private keys.
+The caller owns its reviewed public trust anchor and user-owned signing key.
+The private key exists only as the `SPICE_LIBRARY_RELEASE_SIGNING_KEY` secret in
+the protected `release-signing` environment; it must not be an organization,
+repository, workflow-call, or `release-publish` secret. A separate protected
+`release-publish` environment controls the only job with `contents:write` and
+must contain no private key. The central signer and independently implemented
+verifier must both accept the exact tagged commit before publication.
+Maintainers never commit private keys, generate production keys in automation,
+or pass a private key to validation, verification, or publication jobs.
 
 ## Changes to governance
 
