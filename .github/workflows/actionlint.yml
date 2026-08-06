@@ -33,6 +33,8 @@ jobs:
         run: >-
           ruby -e 'require "yaml"; Dir["**/*.{yml,yaml}"].each {
           |path| YAML.safe_load_file(path, aliases: true) }'
+      - name: Verify reusable release trust boundaries
+        run: python3 .github/scripts/verify_library_release.py
 
   required:
     name: Required CI

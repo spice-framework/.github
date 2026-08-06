@@ -16,59 +16,162 @@ on:
 # Grant nothing by default. Each phase receives only the capability it needs.
 permissions: {}
 
+env:
+  GOENV: "off"
+  GOPROXY: "off"
+  GOSUMDB: "off"
+  GOTOOLCHAIN: local
+  GOWORK: "off"
+  TRUSTED_DEVELOPMENT_COMMIT: 963bb6676069b0d4217bf22401e30482e3d05575
+  TRUSTED_TOOLCHAIN_COMMIT: a83d9b58034cfa1487828fd2b44d28115d987a81
+
 concurrency:
   group: library-release-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   validate:
-    name: Validate exact release candidate
-    runs-on: ubuntu-latest
+    name: Validate exact release candidate without credentials
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: read
-    env:
-      GOTOOLCHAIN: local
     steps:
       - name: Check out exact candidate commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          path: candidate
           persist-credentials: false
           ref: ${{ github.sha }}
-      - name: Set up exact Go toolchain
+      - name: Set up exact Go toolchain without shared caches
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: false
           go-version: 1.26.5
-          cache-dependency-path: go.sum
       - name: Require an exact semantic-version tag and trusted inputs
         shell: bash
         env:
           MODULE: ${{ inputs.module }}
-          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
+          PUBLIC_KEY_RELATIVE: ${{ inputs.trusted_public_key }}
         run: |
           semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
           [[ "$GITHUB_REF_TYPE" == tag ]]
           [[ "$GITHUB_REF_NAME" =~ $semver ]]
           [[ -n "$MODULE" ]]
-          [[ "$PUBLIC_KEY" != /* && "$PUBLIC_KEY" != *..* ]]
-          test -f "$PUBLIC_KEY"
-          test ! -L "$PUBLIC_KEY"
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
-      - name: Verify release candidate without credentials
-        run: make verify-release
-      - name: Build the exact-commit release plan
+          [[ "$PUBLIC_KEY_RELATIVE" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$PUBLIC_KEY_RELATIVE" != /* && "$PUBLIC_KEY_RELATIVE" != */ && "$PUBLIC_KEY_RELATIVE" != *//* ]]
+          current="$GITHUB_WORKSPACE/candidate"
+          test ! -L "$current"
+          IFS='/' read -r -a components <<< "$PUBLIC_KEY_RELATIVE"
+          for component in "${components[@]}"; do
+            [[ -n "$component" && "$component" != . && "$component" != .. ]]
+            current="$current/$component"
+            test ! -L "$current"
+          done
+          public_key="$GITHUB_WORKSPACE/candidate/$PUBLIC_KEY_RELATIVE"
+          test -f "$public_key"
+          test ! -L "$public_key"
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          tree_entry="$(git -C candidate ls-tree "$GITHUB_SHA" -- "$PUBLIC_KEY_RELATIVE")"
+          metadata="${tree_entry%%$'\t'*}"
+          entry_path="${tree_entry#*$'\t'}"
+          read -r mode object_type object_id <<< "$metadata"
+          [[ "$mode" == 100644 && "$object_type" == blob ]]
+          [[ "$object_id" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+          [[ "$entry_path" == "$PUBLIC_KEY_RELATIVE" ]]
+          cmp -s "$public_key" <(git -C candidate show "$GITHUB_SHA:$PUBLIC_KEY_RELATIVE")
+      - name: Exercise candidate-owned release checks without release credentials
         shell: bash
         env:
-          GOFLAGS: -mod=vendor
-          GOPROXY: "off"
-          GOWORK: "off"
+          GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
+        run: make -C candidate verify-release
+
+  plan:
+    name: Plan with immutable central renderer
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out inert exact candidate input
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Check out immutable trusted renderer source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          path: trusted/development
+          persist-credentials: false
+          ref: ${{ env.TRUSTED_DEVELOPMENT_COMMIT }}
+          repository: spice-framework/development
+      - name: Set up exact Go toolchain without shared caches
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          cache: false
+          go-version: 1.26.5
+      - name: Revalidate exact candidate and trusted renderer checkouts
+        shell: bash
+        env:
+          PUBLIC_KEY_RELATIVE: ${{ inputs.trusted_public_key }}
+        run: |
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$PUBLIC_KEY_RELATIVE" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$PUBLIC_KEY_RELATIVE" != /* && "$PUBLIC_KEY_RELATIVE" != */ && "$PUBLIC_KEY_RELATIVE" != *//* ]]
+          current="$GITHUB_WORKSPACE/candidate"
+          test ! -L "$current"
+          IFS='/' read -r -a components <<< "$PUBLIC_KEY_RELATIVE"
+          for component in "${components[@]}"; do
+            [[ -n "$component" && "$component" != . && "$component" != .. ]]
+            current="$current/$component"
+            test ! -L "$current"
+          done
+          public_key="$GITHUB_WORKSPACE/candidate/$PUBLIC_KEY_RELATIVE"
+          test -f "$public_key"
+          test ! -L "$public_key"
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          tree_entry="$(git -C candidate ls-tree "$GITHUB_SHA" -- "$PUBLIC_KEY_RELATIVE")"
+          metadata="${tree_entry%%$'\t'*}"
+          entry_path="${tree_entry#*$'\t'}"
+          read -r mode object_type object_id <<< "$metadata"
+          [[ "$mode" == 100644 && "$object_type" == blob ]]
+          [[ "$object_id" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+          [[ "$entry_path" == "$PUBLIC_KEY_RELATIVE" ]]
+          cmp -s "$public_key" <(git -C candidate show "$GITHUB_SHA:$PUBLIC_KEY_RELATIVE")
+          test "$(git -C trusted/development rev-parse HEAD)" = "$TRUSTED_DEVELOPMENT_COMMIT"
+      - name: Build trusted renderer offline from its immutable checkout
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/trusted-development-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/trusted-development-go-module-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted-bin"
+          go build \
+            -C trusted/development \
+            -buildvcs=false \
+            -mod=vendor \
+            -trimpath \
+            -o "$RUNNER_TEMP/trusted-bin/spice-dev" \
+            ./cmd/spice-dev
+      - name: Build exact-commit release plan from inert candidate input
+        shell: bash
         run: |
           repository="${GITHUB_REPOSITORY#*/}"
-          go tool github.com/spice-framework/development/cmd/spice-dev \
+          "$RUNNER_TEMP/trusted-bin/spice-dev" \
             library-release plan \
-            --root=. \
+            --root="$GITHUB_WORKSPACE/candidate" \
             --repo="$repository" \
             --version="$GITHUB_REF_NAME" \
             > "$RUNNER_TEMP/library-release-plan.json"
@@ -81,43 +184,85 @@ jobs:
           retention-days: 1
 
   sign:
-    name: Sign validated artifacts
-    needs: validate
-    runs-on: ubuntu-latest
+    name: Sign with immutable central renderer
+    needs: plan
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: release-signing
     permissions:
       contents: read
-    env:
-      GOTOOLCHAIN: local
     steps:
-      - name: Check out exact candidate commit
+      - name: Check out inert exact candidate input
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          path: candidate
           persist-credentials: false
           ref: ${{ github.sha }}
-      - name: Set up exact Go toolchain
+      - name: Check out immutable trusted signer source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          path: trusted/development
+          persist-credentials: false
+          ref: ${{ env.TRUSTED_DEVELOPMENT_COMMIT }}
+          repository: spice-framework/development
+      - name: Set up exact Go toolchain without shared caches
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: false
           go-version: 1.26.5
-          cache-dependency-path: go.sum
-      - name: Revalidate exact candidate and public trust anchor
+      - name: Revalidate exact candidate and trusted signer checkouts
         shell: bash
         env:
-          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
+          PUBLIC_KEY_RELATIVE: ${{ inputs.trusted_public_key }}
         run: |
           [[ "$GITHUB_REF_TYPE" == tag ]]
-          [[ "$PUBLIC_KEY" != /* && "$PUBLIC_KEY" != *..* ]]
-          test -f "$PUBLIC_KEY"
-          test ! -L "$PUBLIC_KEY"
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          [[ "$PUBLIC_KEY_RELATIVE" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$PUBLIC_KEY_RELATIVE" != /* && "$PUBLIC_KEY_RELATIVE" != */ && "$PUBLIC_KEY_RELATIVE" != *//* ]]
+          current="$GITHUB_WORKSPACE/candidate"
+          test ! -L "$current"
+          IFS='/' read -r -a components <<< "$PUBLIC_KEY_RELATIVE"
+          for component in "${components[@]}"; do
+            [[ -n "$component" && "$component" != . && "$component" != .. ]]
+            current="$current/$component"
+            test ! -L "$current"
+          done
+          public_key="$GITHUB_WORKSPACE/candidate/$PUBLIC_KEY_RELATIVE"
+          test -f "$public_key"
+          test ! -L "$public_key"
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          tree_entry="$(git -C candidate ls-tree "$GITHUB_SHA" -- "$PUBLIC_KEY_RELATIVE")"
+          metadata="${tree_entry%%$'\t'*}"
+          entry_path="${tree_entry#*$'\t'}"
+          read -r mode object_type object_id <<< "$metadata"
+          [[ "$mode" == 100644 && "$object_type" == blob ]]
+          [[ "$object_id" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+          [[ "$entry_path" == "$PUBLIC_KEY_RELATIVE" ]]
+          cmp -s "$public_key" <(git -C candidate show "$GITHUB_SHA:$PUBLIC_KEY_RELATIVE")
+          test "$(git -C trusted/development rev-parse HEAD)" = "$TRUSTED_DEVELOPMENT_COMMIT"
       - name: Receive validated release plan
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: library-release-plan
           path: ${{ runner.temp }}/library-release-plan
+      - name: Build trusted signer before exposing the private key
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/trusted-development-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/trusted-development-go-module-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted-bin"
+          go build \
+            -C trusted/development \
+            -buildvcs=false \
+            -mod=vendor \
+            -trimpath \
+            -o "$RUNNER_TEMP/trusted-bin/spice-dev" \
+            ./cmd/spice-dev
       - name: Materialize user-owned signing key
         shell: bash
         env:
@@ -126,21 +271,18 @@ jobs:
           test -n "$RELEASE_SIGNING_KEY"
           umask 077
           printf '%s' "$RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/library-release.key"
-      - name: Sign exact-commit artifacts
+      - name: Sign exact-commit artifacts from inert candidate input
         shell: bash
         env:
-          GOFLAGS: -mod=vendor
-          GOPROXY: "off"
-          GOWORK: "off"
-          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
+          PUBLIC_KEY_RELATIVE: ${{ inputs.trusted_public_key }}
         run: |
-          go tool github.com/spice-framework/development/cmd/spice-dev \
+          "$RUNNER_TEMP/trusted-bin/spice-dev" \
             library-release sign \
-            --root=. \
+            --root="$GITHUB_WORKSPACE/candidate" \
             --plan="$RUNNER_TEMP/library-release-plan/library-release-plan.json" \
             --output="$RUNNER_TEMP/library-release-signed" \
             --signing-key="$RUNNER_TEMP/library-release.key" \
-            --trusted-public-key="$PUBLIC_KEY"
+            --trusted-public-key="$GITHUB_WORKSPACE/candidate/$PUBLIC_KEY_RELATIVE"
       - name: Remove signing key
         if: always()
         shell: bash
@@ -154,54 +296,100 @@ jobs:
           retention-days: 1
 
   verify:
-    name: Independently authenticate signed artifacts
+    name: Authenticate with immutable independent verifier
     needs: sign
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
-    env:
-      GOTOOLCHAIN: local
     steps:
-      - name: Check out exact candidate commit
+      - name: Check out inert exact candidate input
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          path: candidate
           persist-credentials: false
           ref: ${{ github.sha }}
-      - name: Set up exact Go toolchain
+      - name: Check out immutable trusted verifier source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          path: trusted/toolchain
+          persist-credentials: false
+          ref: ${{ env.TRUSTED_TOOLCHAIN_COMMIT }}
+          repository: spice-framework/toolchain
+      - name: Set up exact Go toolchain without shared caches
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
+          cache: false
           go-version: 1.26.5
-          cache-dependency-path: go.sum
+      - name: Revalidate exact candidate and trusted verifier checkouts
+        shell: bash
+        env:
+          PUBLIC_KEY_RELATIVE: ${{ inputs.trusted_public_key }}
+        run: |
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$PUBLIC_KEY_RELATIVE" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$PUBLIC_KEY_RELATIVE" != /* && "$PUBLIC_KEY_RELATIVE" != */ && "$PUBLIC_KEY_RELATIVE" != *//* ]]
+          current="$GITHUB_WORKSPACE/candidate"
+          test ! -L "$current"
+          IFS='/' read -r -a components <<< "$PUBLIC_KEY_RELATIVE"
+          for component in "${components[@]}"; do
+            [[ -n "$component" && "$component" != . && "$component" != .. ]]
+            current="$current/$component"
+            test ! -L "$current"
+          done
+          public_key="$GITHUB_WORKSPACE/candidate/$PUBLIC_KEY_RELATIVE"
+          test -f "$public_key"
+          test ! -L "$public_key"
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          tree_entry="$(git -C candidate ls-tree "$GITHUB_SHA" -- "$PUBLIC_KEY_RELATIVE")"
+          metadata="${tree_entry%%$'\t'*}"
+          entry_path="${tree_entry#*$'\t'}"
+          read -r mode object_type object_id <<< "$metadata"
+          [[ "$mode" == 100644 && "$object_type" == blob ]]
+          [[ "$object_id" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+          [[ "$entry_path" == "$PUBLIC_KEY_RELATIVE" ]]
+          cmp -s "$public_key" <(git -C candidate show "$GITHUB_SHA:$PUBLIC_KEY_RELATIVE")
+          test "$(git -C trusted/toolchain rev-parse HEAD)" = "$TRUSTED_TOOLCHAIN_COMMIT"
       - name: Receive signed artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: library-release-signed
           path: ${{ runner.temp }}/library-release-signed
-      - name: Independently authenticate artifacts
+      - name: Build trusted verifier offline from its immutable checkout
         shell: bash
         env:
-          GOFLAGS: -mod=vendor
-          GOPROXY: "off"
-          GOWORK: "off"
+          GOCACHE: ${{ runner.temp }}/trusted-toolchain-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/trusted-toolchain-go-module-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted-bin"
+          go build \
+            -C trusted/toolchain \
+            -buildvcs=false \
+            -mod=vendor \
+            -trimpath \
+            -o "$RUNNER_TEMP/trusted-bin/spice-library-release-verify" \
+            ./cmd/spice-library-release-verify
+      - name: Independently authenticate artifacts against inert candidate input
+        shell: bash
+        env:
           MODULE: ${{ inputs.module }}
-          PUBLIC_KEY: ${{ inputs.trusted_public_key }}
+          PUBLIC_KEY_RELATIVE: ${{ inputs.trusted_public_key }}
         run: |
           repository="${GITHUB_REPOSITORY#*/}"
-          test -f "$PUBLIC_KEY"
-          test ! -L "$PUBLIC_KEY"
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
-          go tool github.com/spice-framework/toolchain/cmd/spice-library-release-verify \
+          "$RUNNER_TEMP/trusted-bin/spice-library-release-verify" \
             -artifacts="$RUNNER_TEMP/library-release-signed" \
-            -root=. \
+            -root="$GITHUB_WORKSPACE/candidate" \
             -repository="$repository" \
             -source="https://github.com/$GITHUB_REPOSITORY" \
             -module="$MODULE" \
             -version="$GITHUB_REF_NAME" \
             -commit="$GITHUB_SHA" \
-            -trusted-public-key="$PUBLIC_KEY"
+            -trusted-public-key="$GITHUB_WORKSPACE/candidate/$PUBLIC_KEY_RELATIVE"
       - name: Transfer independently verified artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -213,23 +401,26 @@ jobs:
   publish:
     name: Publish independently verified artifacts
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: release-publish
     permissions:
       contents: write
     steps:
-      - name: Check out exact candidate commit
+      - name: Check out inert exact candidate input
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          path: candidate
           persist-credentials: false
           ref: ${{ github.sha }}
       - name: Revalidate immutable tag target
         shell: bash
         run: |
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
       - name: Receive only independently verified artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
@@ -239,9 +430,27 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "$RUNNER_TEMP/library-release-verified"/*
-          --verify-tag
-          --generate-notes
-          --fail-on-no-commits
+        run: |
+          resolve_remote_tag() {
+            local direct peeled refs
+            refs="$(git -C candidate ls-remote --tags origin \
+              "refs/tags/$GITHUB_REF_NAME" \
+              "refs/tags/$GITHUB_REF_NAME^{}")"
+            direct="$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$GITHUB_REF_NAME" '$2 == ref { print $1 }')"
+            peeled="$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$GITHUB_REF_NAME^{}" '$2 == ref { print $1 }')"
+            [[ "$direct" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+            if [[ -n "$peeled" ]]; then
+              [[ "$peeled" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+              printf '%s\n' "$peeled"
+              return
+            fi
+            printf '%s\n' "$direct"
+          }
+
+          test "$(resolve_remote_tag)" = "$GITHUB_SHA"
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/library-release-verified"/* \
+            --verify-tag \
+            --generate-notes \
+            --fail-on-no-commits
+          test "$(resolve_remote_tag)" = "$GITHUB_SHA"

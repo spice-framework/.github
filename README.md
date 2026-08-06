@@ -20,10 +20,16 @@ Reusable workflows expose one stable `Required CI` result after all matrix and
 offline jobs finish. Checkout credentials are never persisted, so verification
 jobs cannot accidentally reuse the workflow token for Git mutations.
 
-The library release workflow requires an exact Git tag, the caller's pinned
-and vendored central signer and independent verifier tools, and a reviewed
-public trust anchor at `security/release/ed25519-public.pem` (or the explicit
-`trusted_public_key` input). Each caller must create two protected environments:
+The library release workflow requires an exact Git tag and a reviewed public
+trust anchor at `security/release/ed25519-public.pem` (or the explicit
+`trusted_public_key` input). A candidate's own pinned and vendored tools remain
+part of its local quality gate, but release authority never executes them.
+Instead, this workflow builds the renderer/signer from the separate immutable
+`spice-framework/development` commit
+`963bb6676069b0d4217bf22401e30482e3d05575` and the verifier from the separate
+immutable `spice-framework/toolchain` commit
+`a83d9b58034cfa1487828fd2b44d28115d987a81`, offline and without shared Go
+caches. Each caller must create two protected environments:
 
 - `release-signing` owns the required
   `SPICE_LIBRARY_RELEASE_SIGNING_KEY` environment secret and grants no write
@@ -36,6 +42,19 @@ GitHub and committed source. The reusable workflow validates without secrets,
 signs with `contents:read`, independently verifies using only the public anchor,
 and gives `contents:write` only to the final publishing job. That job receives
 only the independently verified five-artifact set.
+
+Candidate-owned checks execute only in the uncredentialed validation job. The
+trusted planning, signing, verification, and publishing jobs use fresh candidate
+checkouts strictly as inert source/Git input; they never run a candidate-selected
+`go tool`, Make target, script, generated binary, or vendored implementation.
+Every phase also requires the tagged commit to be an ancestor of fetched
+`origin/main`. The public anchor must be a clean repository-relative path to an
+exact `100644` blob in that commit, contain no symlink component, and match its
+committed bytes. Publication resolves lightweight and annotated remote tags
+immediately before and after creating the release and requires both targets to
+remain the exact workflow commit.
+Changing either trusted tool commit is a security-sensitive workflow change and
+requires callers to review and pin the resulting `.github` commit.
 
 Callers pin this repository by immutable commit, grant the reusable call a
 `contents:write` ceiling so its final job can publish, and pass no secrets:

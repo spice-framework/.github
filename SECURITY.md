@@ -40,3 +40,23 @@ and the public anchor, and publication alone receives `contents:write`. Never
 put the private key in an organization or repository secret, pass it through a
 `workflow_call`, expose it to verification or publication, or generate a
 production key in CI.
+
+The release workflow must not execute a signer or verifier selected by the
+tagged candidate. Candidate-owned checks run in a separate uncredentialed job
+whose filesystem and outputs are not trusted as release authority. Planning and
+signing build `spice-dev` from immutable commit
+`963bb6676069b0d4217bf22401e30482e3d05575`; verification builds the independent
+verifier from immutable commit
+`a83d9b58034cfa1487828fd2b44d28115d987a81`. Both builds use the trusted
+repositories' vendor trees, network-disabled Go settings, isolated build/module
+caches, and `-trimpath`. Fresh candidate checkouts remain inert inputs after the
+uncredentialed validation phase.
+
+The workflow admits only tagged commits that descend from fetched `origin/main`.
+Its public anchor path must be clean and repository-relative, resolve without a
+symlink in any component, identify an exact `100644` Git blob in the tagged
+commit, and match the checked-out bytes. These workflow checks supplement,
+rather than replace, protected environment reviewers and server-side tag rules.
+Publication also resolves both lightweight and annotated remote tag forms
+immediately before and after release creation and requires the peeled target to
+remain the exact workflow commit.

@@ -50,7 +50,12 @@ the protected `release-signing` environment; it must not be an organization,
 repository, workflow-call, or `release-publish` secret. A separate protected
 `release-publish` environment controls the only job with `contents:write` and
 must contain no private key. The central signer and independently implemented
-verifier must both accept the exact tagged commit before publication.
+verifier are built offline from separately checked-out immutable governance
+commits, never from candidate source or its vendor tree, and must both accept
+the exact tagged commit before publication. Candidate-owned commands may run
+only in the earlier uncredentialed validation job; all later phases treat a
+fresh candidate checkout as inert input. Updating either trusted tool commit is
+a security-sensitive governance change.
 Maintainers never commit private keys, generate production keys in automation,
 or pass a private key to validation, verification, or publication jobs.
 
