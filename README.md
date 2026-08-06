@@ -67,6 +67,15 @@ workflow's candidate checkout uses a non-root path.
 Changing either trusted tool commit is a security-sensitive workflow change and
 requires callers to review and pin the resulting `.github` commit.
 
+All ten active starter repositories now pin this workflow at immutable commit
+`9ae80e32f64b29697acd9ebe629468850b4ae9f2`. Their copied release commands and
+private release packages have been retired. Each caller has a distinct
+committed Ed25519 public anchor, a corresponding repository Actions secret,
+separate protected signing and publication approvals, and release-tag creation
+and immutability rules. These facts establish the common release architecture;
+they do not imply that every tagged preview run and independent downloaded-
+artifact audit has completed.
+
 Callers pin this repository by immutable commit, grant the reusable call a
 `contents:write` ceiling so its final job can publish, and pass no secrets:
 
@@ -90,3 +99,11 @@ repository Actions secret. Pass the one named secret explicitly; never use
 `secrets: inherit`. GitHub cannot raise permissions inside a called workflow,
 so omitting the caller's `contents:write` ceiling prevents publication; it does
 not give the validation, signing, or verification jobs write access.
+
+Repository ownership is intentionally split. `spice` owns runtime and public
+SDK contracts; `toolchain` owns the compiler, generator, CLI, LSP, release
+verifier, and performance budgets; editor integrations, reference
+applications, starters, development tooling, and organization workflows live
+in their own independently gated repositories. The public organization profile
+lists the current boundaries without treating compatibility pins as moving
+repository-head versions.

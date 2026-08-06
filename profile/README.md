@@ -7,27 +7,52 @@ explicit dependencies, and a small runtime.
 
 ## Repositories
 
-- [`spice`](https://github.com/spice-framework/spice) owns the framework runtime,
-  compiler, command-line tools, and core examples.
+- [`spice`](https://github.com/spice-framework/spice) owns the framework runtime
+  and public SDK contracts.
+- [`toolchain`](https://github.com/spice-framework/toolchain) owns the compiler,
+  deterministic generator, CLI, LSP, independent library-release verifier, and
+  enforced compiler/generator/development-loop performance budgets.
 - [`petclinic`](https://github.com/spice-framework/petclinic) is the standalone
   Spring Petclinic reference application, with generated in-memory, PostgreSQL,
-  and MySQL targets and clean-room verification on all supported host platforms.
+  and MySQL targets plus explicit minimum/current core and toolchain
+  compatibility verification.
+- [`commerce`](https://github.com/spice-framework/commerce) is the
+  production-shaped modular reference application, with explicit
+  minimum/current compatibility verification across generated DI, HTTP,
+  security, data, and mail workflows.
 - [`zed`](https://github.com/spice-framework/zed) owns the independently
   versioned Zed extension that launches Spice's shared language server.
 - [`goland`](https://github.com/spice-framework/goland) owns the independently
   versioned GoLand plugin, including valid-Go annotation editing, zero-width
   concealment, navigation, syntax coloring, package Run/Debug, and installed-IDE
   visual gates on Windows and Linux.
+- [`starter-smtp`](https://github.com/spice-framework/starter-smtp),
+  [`starter-postgres`](https://github.com/spice-framework/starter-postgres),
+  [`starter-mysql`](https://github.com/spice-framework/starter-mysql), and
+  [`starter-redis`](https://github.com/spice-framework/starter-redis) own mail,
+  relational-data, and cache integrations outside core.
+- [`starter-otel`](https://github.com/spice-framework/starter-otel),
+  [`starter-oauth2client`](https://github.com/spice-framework/starter-oauth2client),
+  and [`starter-oidc`](https://github.com/spice-framework/starter-oidc) own
+  observability and OAuth2/OIDC integrations.
+- [`starter-websocket`](https://github.com/spice-framework/starter-websocket),
+  [`starter-grpc`](https://github.com/spice-framework/starter-grpc), and
+  [`starter-kafka`](https://github.com/spice-framework/starter-kafka) own
+  independently gated real-time, RPC, and broker integrations.
 - [`development`](https://github.com/spice-framework/development) owns
-  cross-repository workspace, compatibility, and coordinated verification
-  tooling.
+  cross-repository workspace, compatibility, coordinated verification, and the
+  central deterministic starter-release renderer/signer.
 - [`.github`](https://github.com/spice-framework/.github) owns organization
-  governance and reusable verification workflows.
+  governance and reusable verification and signed-library-release workflows.
 
-Further editor integrations, reference applications, and external-service
-starters will appear here only after each one has an independent gate and
-clean-room evidence. A planned repository is not advertised as released
-functionality.
+Each active starter has its own product gate and real-system acceptance where
+applicable. All ten use the same immutable central source-release workflow,
+distinct committed Ed25519 trust anchors, separate protected signing and
+publication approvals, and restricted immutable release tags; copied local
+release builders have been retired. This is a statement about repository and
+release-infrastructure readiness. Consult each repository's Releases page for
+what is actually published; an in-flight preview run is not advertised as a
+completed release.
 
 ## Engineering principles
 
@@ -42,5 +67,7 @@ functionality.
 - Compatibility and maturity are evidence-backed rather than inferred from an
   API name or roadmap entry.
 
-Spice is pre-1.0. See each repository's compatibility declaration before
-depending on it, and use private vulnerability reporting for security issues.
+Spice is pre-1.0. Compatibility declarations and reference-application matrices
+are pinned consumer contracts, not aliases for the latest repository heads.
+Review both the declared compatibility and published release before depending
+on a component, and use private vulnerability reporting for security issues.
