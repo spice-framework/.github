@@ -281,7 +281,9 @@ jobs:
         run: |
           test -n "$RELEASE_SIGNING_KEY"
           umask 077
-          printf '%s' "$RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/library-release.key"
+          canonical_key="$(printf '%s' "$RELEASE_SIGNING_KEY" | sed 's/\r$//')"
+          printf '%s\n' "$canonical_key" > "$RUNNER_TEMP/library-release.key"
+          unset canonical_key
       - name: Sign exact-commit artifacts from inert candidate input
         shell: bash
         env:

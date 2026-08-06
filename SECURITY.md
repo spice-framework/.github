@@ -34,6 +34,9 @@ Actions secret `SPICE_LIBRARY_RELEASE_SIGNING_KEY` and map only that named
 secret into the reusable workflow. GitHub does not make a caller environment
 secret available to a cross-repository reusable workflow job, so the secret
 must not be stored only on the environment. Never use `secrets: inherit`.
+GitHub secret storage removes the PEM's terminal newline; the protected signing
+job normalizes CRLF to LF and restores exactly one terminal newline before the
+strict canonical parser reads it.
 Require trusted-reviewer approval for the `release-signing` environment that
 gates the called signing job.
 

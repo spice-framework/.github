@@ -154,6 +154,13 @@ def main() -> None:
         < sign.index("Sign exact-commit artifacts from inert candidate input"),
         "trusted signer must be built before private-key materialization",
     )
+    require(
+        "canonical_key=\"$(printf '%s' \"$RELEASE_SIGNING_KEY\" | sed 's/\\r$//')\""
+        in sign
+        and "printf '%s\\n' \"$canonical_key\"" in sign
+        and "unset canonical_key" in sign,
+        "signing-key materialization must canonicalize line endings and one terminal newline",
+    )
 
     require("needs: sign" in verify, "verification must follow signing")
     require(
