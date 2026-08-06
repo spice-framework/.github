@@ -12,6 +12,20 @@ explicit dependencies, and a small runtime.
 - [`toolchain`](https://github.com/spice-framework/toolchain) owns the compiler,
   deterministic generator, CLI, LSP, independent library-release verifier, and
   enforced compiler/generator/development-loop performance budgets.
+- [`spice-agent`](https://github.com/spice-framework/spice-agent) owns the
+  experimental Spice-native agent kernel, public agent SDK, daemon/client
+  protocols, runtime-plugin host, and conformance contracts. Its static
+  extension graph is the generated Spice bean graph, never a parallel
+  container.
+- [`spice-agent-provider-openai`](https://github.com/spice-framework/spice-agent-provider-openai),
+  [`spice-agent-tools-coding`](https://github.com/spice-framework/spice-agent-tools-coding),
+  and [`spice-agent-tui`](https://github.com/spice-framework/spice-agent-tui)
+  own independently versioned OpenAI Responses, coding-tool, and terminal UI
+  extensions.
+- [`spice-agent-coding`](https://github.com/spice-framework/spice-agent-coding)
+  is the generated SDK-first reference distribution and end-to-end
+  architecture proof; it is not yet advertised as a stable daily-use coding
+  product.
 - [`petclinic`](https://github.com/spice-framework/petclinic) is the standalone
   Spring Petclinic reference application, with generated in-memory, PostgreSQL,
   and MySQL targets plus explicit minimum/current core and toolchain
