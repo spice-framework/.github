@@ -1,5 +1,7 @@
 # Spice Framework organization infrastructure
 
+Unified documentation: [spiceframework.dev/project](https://spiceframework.dev/project/).
+
 This special `.github` repository provides the public organization profile,
 default community health files, issue and pull-request templates, and reusable
 least-privilege verification workflows for Spice repositories.
