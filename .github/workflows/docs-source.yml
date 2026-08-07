@@ -104,7 +104,7 @@ jobs:
         env:
           SOURCE_COMMIT: ${{ github.sha }}
           SOURCE_REPOSITORY: ${{ github.repository }}
-        run: pnpm run preview:source -- --source ../source --repository "$SOURCE_REPOSITORY" --commit "$SOURCE_COMMIT"
+        run: pnpm run preview:source --source ../source --repository "$SOURCE_REPOSITORY" --commit "$SOURCE_COMMIT"
 
       - name: Verify preview behavior and accessibility
         working-directory: portal
