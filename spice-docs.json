@@ -1,0 +1,59 @@
+{
+  "$schema": "https://spiceframework.dev/schemas/spice-docs.schema.json",
+  "schema": 1,
+  "product": {
+    "id": "project-governance",
+    "title": "Project",
+    "family": "project",
+    "summary": "Organization governance, contribution, support, and security policy for the Spice Framework ecosystem.",
+    "maturity": "stable",
+    "audience": [
+      "framework-contributor",
+      "evaluator"
+    ]
+  },
+  "content": [
+    {
+      "source": "profile/README.md",
+      "route": "index",
+      "kind": "concept",
+      "order": 0,
+      "search": true
+    },
+    {
+      "source": "README.md",
+      "route": "infrastructure",
+      "kind": "reference",
+      "order": 10,
+      "search": true
+    },
+    {
+      "source": "CONTRIBUTING.md",
+      "route": "contributing",
+      "kind": "how-to",
+      "order": 20,
+      "search": true
+    },
+    {
+      "source": "GOVERNANCE.md",
+      "route": "governance",
+      "kind": "concept",
+      "order": 30,
+      "search": true
+    },
+    {
+      "source": "SECURITY.md",
+      "route": "security",
+      "kind": "security",
+      "order": 40,
+      "search": true
+    },
+    {
+      "source": "SUPPORT.md",
+      "route": "support",
+      "kind": "how-to",
+      "order": 50,
+      "search": true
+    }
+  ]
+}
