@@ -1,0 +1,75 @@
+name: Reusable documentation source validation
+
+on:
+  workflow_call:
+    inputs:
+      docs_commit:
+        description: Immutable full commit of spice-framework/docs used for validation.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Documentation source
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate immutable docs commit input
+        env:
+          DOCS_COMMIT: ${{ inputs.docs_commit }}
+        shell: bash
+        run: |
+          if [[ ! "$DOCS_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "docs_commit must be a lowercase full Git commit" >&2
+            exit 1
+          fi
+
+      - name: Checkout source repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Checkout immutable documentation validator
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: spice-framework/docs
+          ref: ${{ inputs.docs_commit }}
+          path: portal
+          persist-credentials: false
+
+      - name: Configure Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.11.1
+
+      - name: Activate exact pnpm
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.16.0 --activate
+
+      - name: Install locked portal dependencies
+        working-directory: portal
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate and build the source overlay
+        working-directory: portal
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: pnpm run preview:source -- --source ../source --repository "$SOURCE_REPOSITORY" --commit "$SOURCE_COMMIT"
+
+      - name: Upload preview evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: documentation-source-${{ github.event.repository.name }}-${{ github.run_id }}
+          path: |
+            portal/.artifacts/source-preview
+            portal/dist
+          if-no-files-found: warn
+          retention-days: 7

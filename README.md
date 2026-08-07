@@ -11,10 +11,18 @@ least-privilege verification workflows for Spice repositories.
 - Reusable Go gate: [`.github/workflows/go-verify.yml`](.github/workflows/go-verify.yml)
 - Reusable Gradle gate: [`.github/workflows/gradle-verify.yml`](.github/workflows/gradle-verify.yml)
 - Reusable signed library release: [`.github/workflows/library-release.yml`](.github/workflows/library-release.yml)
+- Reusable documentation source validation: [`.github/workflows/docs-source.yml`](.github/workflows/docs-source.yml)
 
 Third-party actions are pinned to immutable commits. Repository-specific gates
 remain responsible for product integration, generated freshness, real-service,
 editor UI, compatibility, and release evidence.
+
+Documentation contributors pin `docs-source.yml` by full commit and supply a
+full immutable `spice-framework/docs` commit. The uncredentialed job validates
+the source-owned `spice-docs.json`, overlays the caller commit on the reviewed
+ecosystem snapshot, builds the complete static portal, and retains bounded
+preview evidence. Source repositories contribute Markdown and declared assets;
+the portal never executes source-owned build hooks.
 
 Reusable workflows expose one stable `Required CI` result after all matrix and
 offline jobs finish. Checkout credentials are never persisted, so verification
