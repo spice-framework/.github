@@ -69,7 +69,8 @@ a security-sensitive governance change.
 Maintainers never commit private keys, generate production keys in automation,
 or pass a private key to validation, verification, or publication jobs.
 
-Generic Go-module releases use the separate keyless organization workflow and
+Generic Go-module and Go-distribution releases use separate profile-specific
+keyless organization workflows and
 never receive the starter release's private-key secret. Candidate-owned checks
 run before release authority is introduced. Organization-owned rendering and
 independent toolchain verification must both accept the exact tagged commit and
@@ -80,10 +81,11 @@ source identity and reusable workflow before publication. Both environments
 are approval gates and contain no secrets.
 
 The existing key-backed library workflow remains the starter release contract.
-A generic module must not use it, and a `starter-*` repository must not route
-through the keyless generic profile. Distribution binaries require a separate
-profile-specific renderer and verifier before they may adopt the keyless
-workflow pattern.
+A generic module or distribution must not use it, and a `starter-*` repository
+must not route through either keyless generic profile. Modules and
+distributions have distinct reusable workflow identities, central renderers,
+independent verifier commands, artifact allowlists, and semantic regression
+contracts; neither workflow accepts the other's profile.
 
 Protected-environment approval is intentionally separate from cryptographic
 key custody. Reviewers approve the exact tag, commit, public anchor, and trusted

@@ -75,10 +75,11 @@ immediately before and after release creation and requires the peeled target to
 remain the exact workflow commit and the direct tag object to remain unchanged.
 The publishing CLI is explicitly scoped to the caller repository.
 
-## Keyless generic Go-module releases
+## Keyless generic Go-module and distribution releases
 
-Generic Go modules use GitHub artifact attestations backed by Sigstore rather
-than a repository or organization private key. Their reusable workflow accepts
+Generic Go modules and binary distributions use separate GitHub artifact
+attestation workflows backed by Sigstore rather than a repository or
+organization private key. Each reusable workflow accepts
 only the canonical module input and no secrets. The caller's permission ceiling
 must include `contents:write`, `id-token:write`, `attestations:write`, and
 `artifact-metadata:write`, but the called workflow narrows these capabilities
@@ -99,8 +100,10 @@ organization repository commits. The independently built verifier alone may
 use the public Go proxy and checksum database in fresh caches to authenticate
 the selected graph and reproduce vendor; it builds the archive-materialized
 Git tree offline and never the caller worktree. It then re-lists untrusted
-renderer input and copies exactly four accepted files into a new verifier-owned
-directory. Only those copied bytes cross into attestation. Candidate-owned
+renderer input and copies only its profile's closed artifact set into a new
+verifier-owned directory: four files for modules or nine files for the current
+six-target distribution policy. Only those copied bytes cross into
+attestation. Candidate-owned
 tools run only in the earlier uncredentialed gate. The keyless verifier requires
 the public GitHub OIDC issuer, exact caller repository, exact source commit and
 tag ref, organization
@@ -123,8 +126,9 @@ commits and the semantic regression check requires those exact object IDs.
 Changing either pin requires successful local trust-boundary checks, a newly
 pinned caller workflow, protected secret-free `release-attestation` and
 `release-publish` environments, repository tag immutability, and a public
-end-to-end rehearsal. The module-only workflow rejects starter and distribution
-profiles; neither may bypass its existing or future profile-specific contract.
+end-to-end rehearsal. The module and distribution workflows reject each
+other's profile, and both reject starters; no profile may bypass its dedicated
+contract.
 
 The trust model follows GitHub's documentation for
 [artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations),

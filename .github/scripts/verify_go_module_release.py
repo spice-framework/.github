@@ -5,8 +5,8 @@ from pathlib import Path
 
 WORKFLOW = Path(".github/workflows/go-module-release.yml")
 DISABLED_PIN = "0000000000000000000000000000000000000000"
-DEVELOPMENT_PIN = "c13e77c80c2e03637544365ed6239ff50d98ba18"
-TOOLCHAIN_PIN = "3eae8cf1bc245d78b3600604d608e2f9695d186d"
+DEVELOPMENT_PIN = "67b9ca3f20793da881beeea05910042a81ad9877"
+TOOLCHAIN_PIN = "83c2a7e41945f8e7ce187f5fb333158c4e6ff223"
 
 
 def require(condition: bool, message: str) -> None:
@@ -39,7 +39,7 @@ def main() -> None:
         "library-release" not in text,
         "generic module workflow must not reuse or modify the starter release path",
     )
-    require("go-distribution-v1" not in text, "distribution releases are not yet authorized")
+    require("go-distribution-v1" not in text, "distribution release authority must remain separate")
     require(
         "RELEASE_PROFILE: go-module-v1" in contract,
         "workflow must be fixed to the generic Go-module profile",

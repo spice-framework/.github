@@ -59,6 +59,7 @@ jobs:
         run: |
           python3 .github/scripts/verify_library_release.py
           python3 .github/scripts/verify_go_module_release.py
+          python3 .github/scripts/verify_go_distribution_release.py
 
   required:
     name: Required CI

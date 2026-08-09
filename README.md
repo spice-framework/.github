@@ -14,6 +14,7 @@ least-privilege verification workflows for Spice repositories.
 - Reusable Gradle gate: [`.github/workflows/gradle-verify.yml`](.github/workflows/gradle-verify.yml)
 - Reusable signed library release: [`.github/workflows/library-release.yml`](.github/workflows/library-release.yml)
 - Reusable keyless Go-module release: [`.github/workflows/go-module-release.yml`](.github/workflows/go-module-release.yml)
+- Reusable keyless Go-distribution release: [`.github/workflows/go-distribution-release.yml`](.github/workflows/go-distribution-release.yml)
 - Reusable documentation source validation: [`.github/workflows/docs-source.yml`](.github/workflows/docs-source.yml)
 
 Third-party actions are pinned to immutable commits. Repository-specific gates
@@ -104,13 +105,18 @@ before a separate protected `release-publish` job receives `contents:write`.
 No long-lived signing key or caller secret exists in this path.
 
 `go-module-release.yml` pins the reviewed renderer at development commit
-`c13e77c80c2e03637544365ed6239ff50d98ba18` and its independently implemented
+`67b9ca3f20793da881beeea05910042a81ad9877` and its independently implemented
 verifier at toolchain commit
-`3eae8cf1bc245d78b3600604d608e2f9695d186d`. Changing either pin and its
-regression assertion is one security-sensitive governance change.
-`go-distribution-v1` is not accepted by this workflow; distribution archives
-require their own renderer/verifier acceptance before reuse of the keyless
-attestation pattern.
+`83c2a7e41945f8e7ce187f5fb333158c4e6ff223`. Changing either pin and its
+regression assertion is one security-sensitive governance change. The module
+workflow remains fixed to `go-module-v1`.
+
+Binary distributions use the separate `go-distribution-release.yml` workflow.
+It pins the same reviewed commits but invokes the profile-specific central
+distribution renderer and independent distribution verifier. The closed
+`go-distribution-v1` policy currently authenticates six target archives,
+release metadata, an SPDX SBOM, and checksums before keyless attestation. It
+never broadens the module or starter release contracts.
 
 Each caller pins this repository by full commit and grants only the
 ceiling that the called workflow narrows per job:
@@ -131,7 +137,9 @@ jobs:
       workflow_commit: <same-40-character-commit>
 ```
 
-The caller passes no secrets and must not use `secrets: inherit`. Before
+Distribution callers use the same permission ceiling and inputs but select
+`go-distribution-release.yml` in `uses`. The caller passes no secrets and must
+not use `secrets: inherit`. Before
 enablement, maintainers create protected `release-attestation` and
 `release-publish` environments, restrict them to release tags, require trusted
 reviewers, and keep both environments secret-free.
