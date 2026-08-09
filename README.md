@@ -68,9 +68,11 @@ and gives `contents:write` only to the final publishing job. That job receives
 only the independently verified five-artifact set.
 
 Candidate-owned checks execute only in the uncredentialed validation job. That
-job has no secrets or release authority and may resolve the exact committed
-module graph only through `proxy.golang.org` with the public checksum database;
-private-module exceptions are cleared explicitly. The trusted planning,
+job has no secrets or release authority. It first bootstraps the candidate's
+exact pinned public tool graph through `proxy.golang.org` and the public
+checksum database into isolated caches, verifies that the checkout remained
+clean, and then runs `verify-release` with `GOPROXY=off`, `GOSUMDB=off`, and
+private-module exceptions explicitly cleared. The trusted planning,
 signing, verification, and publishing jobs use fresh candidate
 checkouts strictly as inert source/Git input; they never run a candidate-selected
 `go tool`, Make target, script, generated binary, or vendored implementation.
@@ -88,7 +90,8 @@ Changing either trusted tool commit is a security-sensitive workflow change and
 requires callers to review and pin the resulting `.github` commit.
 
 Generic Go modules use a separate keyless release contract. The candidate gate
-has no signing or publication authority. An immutable organization renderer
+has no signing or publication authority. Its public-proxy tool bootstrap is
+separate from its offline, fail-closed repository verification. An immutable organization renderer
 creates deterministic source, SBOM, metadata, and checksum artifacts; an
 independently implemented toolchain verifier authenticates those bytes before
 a protected `release-attestation` job mints a short-lived GitHub OIDC identity.

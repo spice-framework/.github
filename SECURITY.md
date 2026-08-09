@@ -59,11 +59,13 @@ repositories' vendor trees, network-disabled Go settings, isolated build/module
 caches, and `-trimpath`. Fresh candidate checkouts remain inert inputs after the
 uncredentialed validation phase.
 
-The uncredentialed candidate-validation job may authenticate the exact
-committed module graph through Go's public proxy and checksum database. It has
-no secrets or release authority, and private-module exceptions are cleared.
-Trusted renderer, signer, and verifier builds remain vendor-only and
-network-disabled.
+The uncredentialed candidate-validation job may bootstrap only the exact
+candidate-owned pinned public tool graph through Go's proxy and checksum
+database. It has no secrets or release authority, uses isolated caches, and
+must leave the checkout clean. The following candidate-owned `verify-release`
+step reuses those caches with `GOPROXY=off`, `GOSUMDB=off`, and private-module
+exceptions cleared. Trusted renderer, signer, and verifier builds remain
+vendor-only and network-disabled.
 
 The workflow admits only tagged commits that descend from fetched `origin/main`.
 Its public anchor path must be clean and repository-relative, resolve without a
@@ -96,9 +98,10 @@ per job:
 
 Rendering and verification are built with Go 1.26.5, `-mod=vendor`, `-trimpath`,
 network-disabled module settings, isolated caches, and distinct immutable
-organization repository commits. The independently built verifier alone may
-use the public Go proxy and checksum database in fresh caches to authenticate
-the selected graph and reproduce vendor; it builds the archive-materialized
+organization repository commits. Within this later central trust boundary,
+the independently built verifier alone may use the public Go proxy and checksum
+database in fresh caches to authenticate the selected graph and reproduce
+vendor; it builds the archive-materialized
 Git tree offline and never the caller worktree. It then re-lists untrusted
 renderer input and copies only its profile's closed artifact set into a new
 verifier-owned directory: four files for modules or nine files for the current

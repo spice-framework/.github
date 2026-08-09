@@ -72,7 +72,9 @@ or pass a private key to validation, verification, or publication jobs.
 Generic Go-module and Go-distribution releases use separate profile-specific
 keyless organization workflows and
 never receive the starter release's private-key secret. Candidate-owned checks
-run before release authority is introduced. Organization-owned rendering and
+run before release authority is introduced. Their pinned public tools are
+bootstrapped only in that uncredentialed boundary, after which candidate-owned
+release verification runs with Go module resolution disabled. Organization-owned rendering and
 independent toolchain verification must both accept the exact tagged commit and
 artifact set. Only the protected attestation job receives `id-token:write`,
 `attestations:write`, and `artifact-metadata:write`; only the separately

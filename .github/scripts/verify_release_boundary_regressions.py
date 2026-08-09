@@ -1,0 +1,123 @@
+"""Mutation regressions for the keyless Go release workflow validators."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+import tempfile
+from pathlib import Path
+from types import ModuleType
+
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.dont_write_bytecode = True
+BOOTSTRAP_STEP = "      - name: Bootstrap candidate-owned pinned tools without release authority\n"
+OFFLINE_STEP = "      - name: Exercise candidate-owned release checks offline\n"
+
+
+def fail(message: str) -> None:
+    raise SystemExit(f"keyless release validator regression failed: {message}")
+
+
+def load_validator(path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    if spec is None or spec.loader is None:
+        fail(f"cannot load validator {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def section(text: str, start_marker: str, end_marker: str) -> tuple[int, int, str]:
+    start = text.find(start_marker)
+    if start < 0:
+        fail(f"missing mutation start marker {start_marker!r}")
+    end = text.find(end_marker, start + len(start_marker))
+    if end < 0:
+        fail(f"missing mutation end marker {end_marker!r}")
+    return start, end, text[start:end]
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    if text.count(old) != 1:
+        fail(f"{label} mutation expected one match, found {text.count(old)}")
+    return text.replace(old, new, 1)
+
+
+def mutations(text: str) -> tuple[tuple[str, str], ...]:
+    bootstrap_start, offline_start, bootstrap = section(text, BOOTSTRAP_STEP, OFFLINE_STEP)
+    render_marker = "\n  render:\n"
+    _, render_start, offline = section(text, OFFLINE_STEP, render_marker)
+
+    missing_bootstrap = text[:bootstrap_start] + text[offline_start:]
+    network_enabled_offline = text[:offline_start] + offline.replace(
+        'GOPROXY: "off"',
+        "GOPROXY: https://proxy.golang.org",
+        1,
+    ) + text[render_start:]
+    reordered_candidate_steps = (
+        text[:bootstrap_start] + offline + bootstrap + text[render_start:]
+    )
+    reordered_authority = replace_once(
+        text,
+        "    needs: verify_attestation\n",
+        "    needs: attest\n",
+        "publication authority order",
+    )
+
+    validate_start, validate_end, validate = section(
+        text,
+        "\n  validate:\n",
+        render_marker,
+    )
+    weakened_validate = replace_once(
+        validate,
+        "    permissions:\n      contents: read\n",
+        "    permissions:\n      contents: write\n",
+        "candidate permissions",
+    )
+    weakened_permissions = text[:validate_start] + weakened_validate + text[validate_end:]
+
+    return (
+        ("missing bootstrap", missing_bootstrap),
+        ("network-enabled offline verification", network_enabled_offline),
+        ("reordered candidate steps", reordered_candidate_steps),
+        ("reordered publication authority", reordered_authority),
+        ("weakened candidate permissions", weakened_permissions),
+    )
+
+
+def require_rejected(module: ModuleType, path: Path, label: str, text: str) -> None:
+    path.write_text(text, encoding="utf-8")
+    module.WORKFLOW = path
+    try:
+        module.main()
+    except SystemExit:
+        return
+    fail(f"{path.name}: validator accepted {label}")
+
+
+def main() -> None:
+    validators = (
+        ROOT / ".github" / "scripts" / "verify_go_module_release.py",
+        ROOT / ".github" / "scripts" / "verify_go_distribution_release.py",
+    )
+    with tempfile.TemporaryDirectory(prefix="spice-release-validator-") as temporary:
+        temporary_root = Path(temporary)
+        for validator_path in validators:
+            module = load_validator(validator_path)
+            workflow = module.WORKFLOW
+            if not workflow.is_absolute():
+                workflow = ROOT / workflow
+            original = workflow.read_text(encoding="utf-8")
+            for label, mutated in mutations(original):
+                require_rejected(
+                    module,
+                    temporary_root / f"{validator_path.stem}-{label.replace(' ', '-')}.yml",
+                    label,
+                    mutated,
+                )
+
+
+if __name__ == "__main__":
+    main()

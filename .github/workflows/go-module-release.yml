@@ -75,19 +75,35 @@ jobs:
           git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
           test "$(go -C candidate list -m -mod=readonly)" = "$MODULE"
           test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""
-      - name: Exercise candidate-owned release checks without credentials
+      - name: Bootstrap candidate-owned pinned tools without release authority
         shell: bash
         env:
           GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
           GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
           # This phase has no secrets, OIDC, attestation permission, or write
-          # authority. Public module resolution is allowed only for the exact
-          # committed graph exercised by the repository-owned quality gate.
+          # authority. Only this bootstrap may resolve the exact committed
+          # public tool graph; verification below is network-disabled.
           GOPRIVATE: ""
+          GONOPROXY: ""
           GONOSUMDB: ""
           GOPROXY: https://proxy.golang.org
           GOSUMDB: sum.golang.org
-        run: make -C candidate verify-release
+        run: |
+          make -C candidate tools-bootstrap
+          test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""
+      - name: Exercise candidate-owned release checks offline
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
+          GOPRIVATE: ""
+          GONOPROXY: ""
+          GONOSUMDB: ""
+          GOPROXY: "off"
+          GOSUMDB: "off"
+        run: |
+          make -C candidate verify-release
+          test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""
 
   render:
     name: Render with immutable central module builder

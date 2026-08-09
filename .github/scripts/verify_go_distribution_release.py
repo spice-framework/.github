@@ -27,6 +27,27 @@ def job(text: str, name: str, next_name: str | None) -> str:
     return text[start:end]
 
 
+def named_step(text: str, name: str, next_name: str | None) -> str:
+    start_marker = f"      - name: {name}\n"
+    start = text.find(start_marker)
+    require(start >= 0, f"missing {name!r} step")
+    if next_name is None:
+        return text[start:]
+    end = text.find(f"      - name: {next_name}\n", start + len(start_marker))
+    require(end >= 0, f"missing {next_name!r} step after {name!r}")
+    return text[start:end]
+
+
+def require_permissions(text: str, name: str, entries: tuple[str, ...]) -> None:
+    marker = "    permissions:\n"
+    start = text.find(marker)
+    require(start >= 0, f"{name} job is missing permissions")
+    end = text.find("    steps:\n", start + len(marker))
+    require(end >= 0, f"{name} job is missing steps after permissions")
+    expected = marker + "".join(f"      {entry}\n" for entry in entries)
+    require(text[start:end] == expected, f"{name} job permissions must be exactly {entries!r}")
+
+
 def main() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     contract = text[: text.index("\njobs:")]
@@ -60,23 +81,95 @@ def main() -> None:
     require(text.count("id-token: write") == 1, "only attestation may mint OIDC")
     require(text.count("attestations: write") == 1, "only attestation may persist provenance")
     require(text.count("artifact-metadata: write") == 1, "only attestation may record metadata")
+    require("\npermissions: {}\n" in contract, "workflow permission default must remain empty")
+    require_permissions(validate, "validate", ("contents: read",))
+    require_permissions(render, "render", ("contents: read",))
+    require_permissions(verify, "verify", ("contents: read",))
+    require_permissions(
+        attest,
+        "attest",
+        (
+            "contents: read",
+            "id-token: write",
+            "attestations: write",
+            "artifact-metadata: write",
+        ),
+    )
+    require_permissions(verify_attestation, "verify_attestation", ("contents: read",))
+    require_permissions(publish, "publish", ("contents: write",))
     require(text.count("merge-base --is-ancestor") == 4, "all candidate phases must require main ancestry")
     require("go tool " not in text and "go run " not in text, "candidate-selected execution is forbidden")
-    require(text.count("make -C candidate verify-release") == 1, "candidate gate must run exactly once")
-    require("make -C candidate" not in privileged, "candidate Make targets must remain unprivileged")
+    tag_step = "Require an authorized exact semantic-version tag"
+    bootstrap_name = "Bootstrap candidate-owned pinned tools without release authority"
+    offline_name = "Exercise candidate-owned release checks offline"
+    bootstrap = named_step(validate, bootstrap_name, offline_name)
+    offline = named_step(validate, offline_name, None)
+    require(
+        validate.index(f"      - name: {tag_step}\n")
+        < validate.index(f"      - name: {bootstrap_name}\n")
+        < validate.index(f"      - name: {offline_name}\n"),
+        "tag authorization, tool bootstrap, and offline verification must remain ordered",
+    )
+    require(
+        "make -C candidate tools-bootstrap" in bootstrap,
+        "candidate pinned-tool bootstrap is missing",
+    )
+    require(
+        "GOPROXY: https://proxy.golang.org" in bootstrap
+        and "GOSUMDB: sum.golang.org" in bootstrap,
+        "candidate tool bootstrap must use the authenticated public module boundary",
+    )
+    require(
+        all(value in bootstrap for value in ('GOPRIVATE: ""', 'GONOPROXY: ""', 'GONOSUMDB: ""')),
+        "candidate tool bootstrap must clear private-module exceptions",
+    )
+    require(
+        "make -C candidate verify-release" not in bootstrap,
+        "bootstrap must not run verification",
+    )
+    require(
+        "make -C candidate verify-release" in offline,
+        "offline candidate release gate is missing",
+    )
+    require(
+        'GOPROXY: "off"' in offline and 'GOSUMDB: "off"' in offline,
+        "candidate release verification must disable module network access",
+    )
+    require(
+        all(value in offline for value in ('GOPRIVATE: ""', 'GONOPROXY: ""', 'GONOSUMDB: ""')),
+        "offline candidate verification must clear private-module exceptions",
+    )
+    require(
+        "https://proxy.golang.org" not in offline
+        and "GOSUMDB: sum.golang.org" not in offline
+        and "tools-bootstrap" not in offline,
+        "offline candidate verification must not retain bootstrap network authority",
+    )
+    cleanliness = 'test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""'
+    require(
+        cleanliness in bootstrap and cleanliness in offline,
+        "candidate steps must preserve a clean checkout",
+    )
+    require(
+        text.count("make -C candidate verify-release") == 1,
+        "candidate gate must run exactly once",
+    )
+    require(
+        text.count("make -C candidate tools-bootstrap") == 1,
+        "candidate bootstrap must run exactly once",
+    )
+    require(
+        validate.count("GOPROXY:") == 2 and validate.count("GOSUMDB:") == 2,
+        "candidate validation must have one bootstrap and one offline module policy",
+    )
+    require(
+        "make -C candidate" not in privileged,
+        "candidate Make targets must remain unprivileged",
+    )
 
     require(
         '[[ "$REPOSITORY_VISIBILITY" == public ]]' in validate,
         "keyless public-good signing must reject non-public callers",
-    )
-    require(
-        "GOPROXY: https://proxy.golang.org" in validate
-        and "GOSUMDB: sum.golang.org" in validate,
-        "only unprivileged validation may authenticate public modules",
-    )
-    require(
-        'GOPRIVATE: ""' in validate and 'GONOSUMDB: ""' in validate,
-        "candidate validation must clear private-module exceptions",
     )
     for authority in ("contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"):
         require(authority not in validate, f"candidate validation received {authority}")
