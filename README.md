@@ -113,9 +113,9 @@ selectors as mutually exclusive; the workflow path already fixes the
 No long-lived signing key or caller secret exists in this path.
 
 `go-module-release.yml` pins the reviewed renderer at development commit
-`d0f88db000acb566b72499c736c9134909ee7912` and its independently implemented
+`a90925bdbd671ed7941af1d3b8c33abeca20dfcb` and its independently implemented
 verifier at toolchain commit
-`4a97e78c3495c5f61bd4e25111722855184a786c`. Changing either pin and its
+`a0ddf9a940cbe72ddc13c7a104418fe50a6f58aa`. Changing either pin and its
 regression assertion is one security-sensitive governance change. The module
 workflow remains fixed to `go-module-v1`.
 

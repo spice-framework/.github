@@ -13,10 +13,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.dont_write_bytecode = True
 BOOTSTRAP_STEP = "      - name: Bootstrap candidate-owned pinned tools without release authority\n"
 OFFLINE_STEP = "      - name: Exercise candidate-owned release checks offline\n"
-DEVELOPMENT_PIN = "d0f88db000acb566b72499c736c9134909ee7912"
-TOOLCHAIN_PIN = "4a97e78c3495c5f61bd4e25111722855184a786c"
-STALE_DEVELOPMENT_PIN = "3937dca034f88907ea170967194e7f765777ac5a"
-STALE_TOOLCHAIN_PIN = "2c0329bdf49a69c342007d95c49db7bda5cf7e19"
+DEVELOPMENT_PIN = "a90925bdbd671ed7941af1d3b8c33abeca20dfcb"
+TOOLCHAIN_PIN = "a0ddf9a940cbe72ddc13c7a104418fe50a6f58aa"
+STALE_DEVELOPMENT_PIN = "d0f88db000acb566b72499c736c9134909ee7912"
+STALE_TOOLCHAIN_PIN = "4a97e78c3495c5f61bd4e25111722855184a786c"
 
 
 def fail(message: str) -> None:
