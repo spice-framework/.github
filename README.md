@@ -102,6 +102,11 @@ metadata authority and has no repository write permission. A following job
 verifies the portable bundle against the exact
 caller repository, source commit/ref, GitHub issuer, and this reusable workflow
 before a separate protected `release-publish` job receives `contents:write`.
+The verifier selects the signer with the fully qualified reusable-workflow path
+and its immutable commit. It deliberately does not also pass a signer-repository
+selector because `gh attestation verify` treats repository and workflow signer
+selectors as mutually exclusive; the workflow path already fixes the
+`spice-framework/.github` repository.
 No long-lived signing key or caller secret exists in this path.
 
 `go-module-release.yml` pins the reviewed renderer at development commit

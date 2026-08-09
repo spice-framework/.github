@@ -110,6 +110,10 @@ tag ref, organization
 reusable-workflow path and commit, and a GitHub-hosted runner. The caller must
 repeat its immutable `uses` revision through the required `workflow_commit`
 input; the signed certificate, not that input by itself, proves the match.
+The verifier uses the fully qualified workflow as its signer selector and does
+not combine it with `--signer-repo`: current `gh` versions treat those selectors
+as mutually exclusive, while the workflow value already fixes the
+`spice-framework/.github` repository and workflow path.
 Publication resolves both annotated and lightweight remote tags before and
 after release creation.
 

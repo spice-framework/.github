@@ -178,11 +178,15 @@ def main() -> None:
         "gh attestation verify" in verify_attestation,
         "portable Sigstore bundle must be independently authenticated",
     )
+    require(
+        "--signer-repo" not in verify_attestation,
+        "gh signer repository and workflow constraints are mutually exclusive; "
+        "the fully qualified workflow must remain the sole signer selector",
+    )
     for expected in (
         "--repo \"$GITHUB_REPOSITORY\"",
         "--bundle \"$bundle\"",
         "--cert-oidc-issuer https://token.actions.githubusercontent.com",
-        "--signer-repo spice-framework/.github",
         "--signer-workflow spice-framework/.github/.github/workflows/go-module-release.yml",
         "--signer-digest \"$WORKFLOW_COMMIT\"",
         "--source-digest \"$GITHUB_SHA\"",

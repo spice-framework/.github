@@ -325,7 +325,6 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --bundle "$bundle" \
               --cert-oidc-issuer https://token.actions.githubusercontent.com \
-              --signer-repo spice-framework/.github \
               --signer-workflow spice-framework/.github/.github/workflows/go-distribution-release.yml \
               --signer-digest "$WORKFLOW_COMMIT" \
               --source-digest "$GITHUB_SHA" \

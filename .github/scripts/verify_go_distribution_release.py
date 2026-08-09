@@ -127,12 +127,16 @@ def main() -> None:
     require("contents: write" not in attest, "attestation must not publish")
 
     require("needs: attest" in verify_attestation, "provenance authentication must follow attestation")
+    require(
+        "--signer-repo" not in verify_attestation,
+        "gh signer repository and workflow constraints are mutually exclusive; "
+        "the fully qualified workflow must remain the sole signer selector",
+    )
     for expected in (
         "gh attestation verify",
         '--repo "$GITHUB_REPOSITORY"',
         '--bundle "$bundle"',
         "--cert-oidc-issuer https://token.actions.githubusercontent.com",
-        "--signer-repo spice-framework/.github",
         "--signer-workflow spice-framework/.github/.github/workflows/go-distribution-release.yml",
         '--signer-digest "$WORKFLOW_COMMIT"',
         '--source-digest "$GITHUB_SHA"',
