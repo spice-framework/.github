@@ -1,0 +1,416 @@
+name: Reusable Go module release
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        description: Exact canonical Go module path for the release.
+        required: true
+        type: string
+      workflow_commit:
+        description: Immutable commit used in this reusable workflow's uses reference.
+        required: true
+        type: string
+
+# A caller grants the ceiling needed by all phases. This reusable workflow
+# narrows that ceiling per job: only attest may mint OIDC identity and record
+# attested artifact metadata, and only publish may write repository contents.
+permissions: {}
+
+env:
+  GOENV: "off"
+  GOPROXY: "off"
+  GOSUMDB: "off"
+  GOTOOLCHAIN: local
+  GOWORK: "off"
+  RELEASE_PROFILE: go-module-v1
+  # These immutable, independently reviewed commits own distinct halves of the
+  # release boundary. Changing either pin is a security-sensitive workflow edit.
+  TRUSTED_DEVELOPMENT_COMMIT: c13e77c80c2e03637544365ed6239ff50d98ba18
+  TRUSTED_TOOLCHAIN_COMMIT: 3eae8cf1bc245d78b3600604d608e2f9695d186d
+
+concurrency:
+  group: go-module-release-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate exact module candidate without release authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up exact Go toolchain without shared caches
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          cache: false
+          go-version: 1.26.5
+      - name: Require an authorized exact semantic-version tag
+        shell: bash
+        env:
+          MODULE: ${{ inputs.module }}
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          WORKFLOW_COMMIT: ${{ inputs.workflow_commit }}
+        run: |
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          [[ "$GITHUB_REPOSITORY_OWNER" == spice-framework ]]
+          [[ "$REPOSITORY_VISIBILITY" == public ]]
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$GITHUB_REF_NAME" =~ $semver ]]
+          [[ "$WORKFLOW_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          repository="${GITHUB_REPOSITORY#*/}"
+          [[ "$repository" != starter-* ]]
+          [[ "$MODULE" == "github.com/spice-framework/$repository" ]]
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          test "$(go -C candidate list -m -mod=readonly)" = "$MODULE"
+          test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""
+      - name: Exercise candidate-owned release checks without credentials
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
+          # This phase has no secrets, OIDC, attestation permission, or write
+          # authority. Public module resolution is allowed only for the exact
+          # committed graph exercised by the repository-owned quality gate.
+          GOPRIVATE: ""
+          GONOSUMDB: ""
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
+        run: make -C candidate verify-release
+
+  render:
+    name: Render with immutable central module builder
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Validate immutable trusted implementation pins
+        shell: bash
+        run: |
+          [[ "$TRUSTED_DEVELOPMENT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TRUSTED_TOOLCHAIN_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TRUSTED_DEVELOPMENT_COMMIT" != 0000000000000000000000000000000000000000 ]]
+          [[ "$TRUSTED_TOOLCHAIN_COMMIT" != 0000000000000000000000000000000000000000 ]]
+      - name: Check out inert exact candidate input
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Check out immutable trusted renderer source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          path: trusted/development
+          persist-credentials: false
+          ref: ${{ env.TRUSTED_DEVELOPMENT_COMMIT }}
+          repository: spice-framework/development
+      - name: Set up exact Go toolchain without shared caches
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          cache: false
+          go-version: 1.26.5
+      - name: Revalidate immutable inputs
+        shell: bash
+        run: |
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          test "$(git -C trusted/development rev-parse HEAD)" = "$TRUSTED_DEVELOPMENT_COMMIT"
+      - name: Build trusted renderer offline
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/trusted-development-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/trusted-development-go-module-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted-bin"
+          go build \
+            -C trusted/development \
+            -buildvcs=false \
+            -mod=vendor \
+            -trimpath \
+            -o "$RUNNER_TEMP/trusted-bin/spice-dev" \
+            ./cmd/spice-dev
+      - name: Render exact-commit Go module artifacts
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY#*/}"
+          "$RUNNER_TEMP/trusted-bin/spice-dev" \
+            go-release render \
+            --root="$GITHUB_WORKSPACE/candidate" \
+            --repo="$repository" \
+            --version="$GITHUB_REF_NAME" \
+            --output="$RUNNER_TEMP/go-module-release-rendered"
+      - name: Recheck renderer-owned reproducibility contract
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY#*/}"
+          "$RUNNER_TEMP/trusted-bin/spice-dev" \
+            go-release verify \
+            --root="$GITHUB_WORKSPACE/candidate" \
+            --repo="$repository" \
+            --version="$GITHUB_REF_NAME" \
+            --artifacts="$RUNNER_TEMP/go-module-release-rendered"
+      - name: Transfer rendered module artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: go-module-release-rendered
+          path: ${{ runner.temp }}/go-module-release-rendered/
+          if-no-files-found: error
+          retention-days: 1
+
+  verify:
+    name: Verify with immutable independent implementation
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out inert exact candidate input
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Check out immutable independent verifier source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          path: trusted/toolchain
+          persist-credentials: false
+          ref: ${{ env.TRUSTED_TOOLCHAIN_COMMIT }}
+          repository: spice-framework/toolchain
+      - name: Set up exact Go toolchain without shared caches
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          cache: false
+          go-version: 1.26.5
+      - name: Revalidate immutable inputs
+        shell: bash
+        run: |
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          test "$(git -C trusted/toolchain rev-parse HEAD)" = "$TRUSTED_TOOLCHAIN_COMMIT"
+      - name: Receive renderer output
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: go-module-release-rendered
+          path: ${{ runner.temp }}/go-module-release-rendered
+      - name: Build independent verifier offline
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/trusted-toolchain-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/trusted-toolchain-go-module-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted-bin"
+          go build \
+            -C trusted/toolchain \
+            -buildvcs=false \
+            -mod=vendor \
+            -trimpath \
+            -o "$RUNNER_TEMP/trusted-bin/spice-go-release-verify" \
+            ./cmd/spice-go-release-verify
+      - name: Independently verify module artifacts
+        shell: bash
+        env:
+          MODULE: ${{ inputs.module }}
+        run: |
+          repository="${GITHUB_REPOSITORY#*/}"
+          "$RUNNER_TEMP/trusted-bin/spice-go-release-verify" \
+            -artifacts="$RUNNER_TEMP/go-module-release-rendered" \
+            -verified-output="$RUNNER_TEMP/go-module-release-verified" \
+            -root="$GITHUB_WORKSPACE/candidate" \
+            -repository="$repository" \
+            -source="https://github.com/$GITHUB_REPOSITORY" \
+            -module="$MODULE" \
+            -version="$GITHUB_REF_NAME" \
+            -commit="$GITHUB_SHA" \
+            -profile="$RELEASE_PROFILE"
+      - name: Transfer only independently verified artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: go-module-release-verified
+          path: ${{ runner.temp }}/go-module-release-verified/
+          if-no-files-found: error
+          retention-days: 1
+
+  attest:
+    name: Keylessly attest independently verified artifacts
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release-attestation
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Receive only independently verified artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: go-module-release-verified
+          path: ${{ runner.temp }}/go-module-release-verified
+      - name: Require a bounded regular artifact set
+        shell: bash
+        run: |
+          test -d "$RUNNER_TEMP/go-module-release-verified"
+          test "$(find "$RUNNER_TEMP/go-module-release-verified" -type l -print -quit)" = ""
+          count="$(find "$RUNNER_TEMP/go-module-release-verified" -maxdepth 1 -type f | wc -l)"
+          [[ "$count" -ge 4 && "$count" -le 8 ]]
+          test "$(find "$RUNNER_TEMP/go-module-release-verified" -mindepth 1 -maxdepth 1 ! -type f -print -quit)" = ""
+      - name: Generate Sigstore-backed SLSA provenance
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ runner.temp }}/go-module-release-verified/*
+      - name: Stage portable attestation bundle
+        shell: bash
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          test -f "$BUNDLE_PATH"
+          test ! -L "$BUNDLE_PATH"
+          mkdir -p "$RUNNER_TEMP/go-module-release-attestation"
+          cp -- "$BUNDLE_PATH" "$RUNNER_TEMP/go-module-release-attestation/provenance.sigstore.json"
+      - name: Transfer artifacts and attestation bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: go-module-release-attested
+          path: |
+            ${{ runner.temp }}/go-module-release-verified/
+            ${{ runner.temp }}/go-module-release-attestation/
+          if-no-files-found: error
+          retention-days: 1
+
+  verify_attestation:
+    name: Authenticate keyless provenance before publication
+    needs: attest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Receive attested artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: go-module-release-attested
+          path: ${{ runner.temp }}/go-module-release-attested
+      - name: Verify every artifact against the reusable workflow identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_COMMIT: ${{ inputs.workflow_commit }}
+        run: |
+          artifacts="$RUNNER_TEMP/go-module-release-attested/go-module-release-verified"
+          bundle="$RUNNER_TEMP/go-module-release-attested/go-module-release-attestation/provenance.sigstore.json"
+          test -f "$bundle"
+          test ! -L "$bundle"
+          while IFS= read -r -d '' artifact; do
+            gh attestation verify "$artifact" \
+              --repo "$GITHUB_REPOSITORY" \
+              --bundle "$bundle" \
+              --cert-oidc-issuer https://token.actions.githubusercontent.com \
+              --signer-repo spice-framework/.github \
+              --signer-workflow spice-framework/.github/.github/workflows/go-module-release.yml \
+              --signer-digest "$WORKFLOW_COMMIT" \
+              --source-digest "$GITHUB_SHA" \
+              --source-ref "$GITHUB_REF" \
+              --deny-self-hosted-runners
+          done < <(find "$artifacts" -maxdepth 1 -type f -print0 | sort -z)
+      - name: Transfer authenticated release input
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: go-module-release-authenticated
+          path: ${{ runner.temp }}/go-module-release-attested/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish authenticated module release
+    needs: verify_attestation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Check out inert exact candidate input
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Revalidate exact candidate and main ancestry
+        shell: bash
+        run: |
+          test "$(git -C candidate rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C candidate rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git -C candidate show-ref --verify --quiet refs/remotes/origin/main
+          git -C candidate merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+      - name: Receive only authenticated release input
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: go-module-release-authenticated
+          path: ${{ runner.temp }}/go-module-release-authenticated
+      - name: Publish immutable-tag assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          resolve_remote_tag() {
+            local direct peeled refs target
+            refs="$(git -C candidate ls-remote --tags origin \
+              "refs/tags/$GITHUB_REF_NAME" \
+              "refs/tags/$GITHUB_REF_NAME^{}")"
+            direct="$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$GITHUB_REF_NAME" '$2 == ref { print $1 }')"
+            peeled="$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$GITHUB_REF_NAME^{}" '$2 == ref { print $1 }')"
+            [[ "$direct" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+            if [[ -n "$peeled" ]]; then
+              [[ "$peeled" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+              target="$peeled"
+            else
+              target="$direct"
+            fi
+            printf '%s %s\n' "$direct" "$target"
+          }
+
+          read -r direct_before target_before <<< "$(resolve_remote_tag)"
+          test "$target_before" = "$GITHUB_SHA"
+          release_flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          artifacts=("$RUNNER_TEMP/go-module-release-authenticated/go-module-release-verified"/*)
+          attestations=("$RUNNER_TEMP/go-module-release-authenticated/go-module-release-attestation"/*)
+          gh release create "$GITHUB_REF_NAME" \
+            "${artifacts[@]}" \
+            "${attestations[@]}" \
+            --verify-tag \
+            --generate-notes \
+            --fail-on-no-commits \
+            "${release_flags[@]}"
+          read -r direct_after target_after <<< "$(resolve_remote_tag)"
+          test "$target_after" = "$GITHUB_SHA"
+          test "$direct_after" = "$direct_before"

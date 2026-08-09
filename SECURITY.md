@@ -74,3 +74,59 @@ Publication also resolves both lightweight and annotated remote tag forms
 immediately before and after release creation and requires the peeled target to
 remain the exact workflow commit and the direct tag object to remain unchanged.
 The publishing CLI is explicitly scoped to the caller repository.
+
+## Keyless generic Go-module releases
+
+Generic Go modules use GitHub artifact attestations backed by Sigstore rather
+than a repository or organization private key. Their reusable workflow accepts
+only the canonical module input and no secrets. The caller's permission ceiling
+must include `contents:write`, `id-token:write`, `attestations:write`, and
+`artifact-metadata:write`, but the called workflow narrows these capabilities
+per job:
+
+- candidate validation, rendering, and independent verification receive only
+  `contents:read` and cannot mint an OIDC identity;
+- `release-attestation` receives `id-token:write`, `attestations:write`, and
+  `artifact-metadata:write`, has no content-write authority, and consumes only
+  independently verified bytes;
+- bundle verification receives only `contents:read`; and
+- `release-publish` alone receives `contents:write`, cannot mint OIDC identity,
+  and consumes only the authenticated artifact set.
+
+Rendering and verification are built with Go 1.26.5, `-mod=vendor`, `-trimpath`,
+network-disabled module settings, isolated caches, and distinct immutable
+organization repository commits. The independently built verifier alone may
+use the public Go proxy and checksum database in fresh caches to authenticate
+the selected graph and reproduce vendor; it builds the archive-materialized
+Git tree offline and never the caller worktree. It then re-lists untrusted
+renderer input and copies exactly four accepted files into a new verifier-owned
+directory. Only those copied bytes cross into attestation. Candidate-owned
+tools run only in the earlier uncredentialed gate. The keyless verifier requires
+the public GitHub OIDC issuer, exact caller repository, exact source commit and
+tag ref, organization
+reusable-workflow path and commit, and a GitHub-hosted runner. The caller must
+repeat its immutable `uses` revision through the required `workflow_commit`
+input; the signed certificate, not that input by itself, proves the match.
+Publication resolves both annotated and lightweight remote tags before and
+after release creation.
+
+The portable Sigstore bundle is published beside the source archive, SBOM,
+release metadata, and checksums so consumers are not limited to a live GitHub
+API lookup. Consumers should verify every downloaded artifact with `gh
+attestation verify`, the bundle, the expected `spice-framework` repository, the
+organization reusable-workflow path, and the immutable workflow commit they
+reviewed. Offline consumers must separately acquire a current trusted-root
+bundle through GitHub's documented TUF-backed process.
+
+The generic workflow pins separately reviewed renderer and independent-verifier
+commits and the semantic regression check requires those exact object IDs.
+Changing either pin requires successful local trust-boundary checks, a newly
+pinned caller workflow, protected secret-free `release-attestation` and
+`release-publish` environments, repository tag immutability, and a public
+end-to-end rehearsal. The module-only workflow rejects starter and distribution
+profiles; neither may bypass its existing or future profile-specific contract.
+
+The trust model follows GitHub's documentation for
+[artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations),
+[OIDC in reusable workflows](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-with-reusable-workflows),
+and [offline attestation verification](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline).

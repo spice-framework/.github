@@ -13,6 +13,7 @@ least-privilege verification workflows for Spice repositories.
 - Reusable Go gate: [`.github/workflows/go-verify.yml`](.github/workflows/go-verify.yml)
 - Reusable Gradle gate: [`.github/workflows/gradle-verify.yml`](.github/workflows/gradle-verify.yml)
 - Reusable signed library release: [`.github/workflows/library-release.yml`](.github/workflows/library-release.yml)
+- Reusable keyless Go-module release: [`.github/workflows/go-module-release.yml`](.github/workflows/go-module-release.yml)
 - Reusable documentation source validation: [`.github/workflows/docs-source.yml`](.github/workflows/docs-source.yml)
 
 Third-party actions are pinned to immutable commits. Repository-specific gates
@@ -84,6 +85,56 @@ The publishing CLI is explicitly bound to the caller repository even though the
 workflow's candidate checkout uses a non-root path.
 Changing either trusted tool commit is a security-sensitive workflow change and
 requires callers to review and pin the resulting `.github` commit.
+
+Generic Go modules use a separate keyless release contract. The candidate gate
+has no signing or publication authority. An immutable organization renderer
+creates deterministic source, SBOM, metadata, and checksum artifacts; an
+independently implemented toolchain verifier authenticates those bytes before
+a protected `release-attestation` job mints a short-lived GitHub OIDC identity.
+The verifier materializes the exact Git archive in private storage, authenticates
+dependencies through the public Go checksum service, proves regenerated vendor
+contents and an offline build, then creates a new four-file output directory.
+Renderer output is never uploaded under the verified artifact name or handed
+directly to attestation.
+That job creates Sigstore-backed SLSA provenance with narrowly scoped artifact
+metadata authority and has no repository write permission. A following job
+verifies the portable bundle against the exact
+caller repository, source commit/ref, GitHub issuer, and this reusable workflow
+before a separate protected `release-publish` job receives `contents:write`.
+No long-lived signing key or caller secret exists in this path.
+
+`go-module-release.yml` pins the reviewed renderer at development commit
+`c13e77c80c2e03637544365ed6239ff50d98ba18` and its independently implemented
+verifier at toolchain commit
+`3eae8cf1bc245d78b3600604d608e2f9695d186d`. Changing either pin and its
+regression assertion is one security-sensitive governance change.
+`go-distribution-v1` is not accepted by this workflow; distribution archives
+require their own renderer/verifier acceptance before reuse of the keyless
+attestation pattern.
+
+Each caller pins this repository by full commit and grants only the
+ceiling that the called workflow narrows per job:
+
+```yaml
+permissions: {}
+
+jobs:
+  release:
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: spice-framework/.github/.github/workflows/go-module-release.yml@<40-character-commit>
+    with:
+      module: github.com/spice-framework/<repository>
+      workflow_commit: <same-40-character-commit>
+```
+
+The caller passes no secrets and must not use `secrets: inherit`. Before
+enablement, maintainers create protected `release-attestation` and
+`release-publish` environments, restrict them to release tags, require trusted
+reviewers, and keep both environments secret-free.
 
 All ten active starter repositories now pin this workflow at immutable commit
 `9ae80e32f64b29697acd9ebe629468850b4ae9f2`. Their copied release commands and

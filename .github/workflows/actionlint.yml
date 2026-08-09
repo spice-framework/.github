@@ -16,7 +16,7 @@ concurrency:
 jobs:
   syntax:
     name: Validate repository files
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check out repository
@@ -33,14 +33,38 @@ jobs:
         run: >-
           ruby -e 'require "yaml"; Dir["**/*.{yml,yaml}"].each {
           |path| YAML.safe_load_file(path, aliases: true) }'
+      - name: Install pinned workflow linters
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/workflow-linters"
+          mkdir -p "$tools/actionlint" "$tools/shellcheck"
+          curl --proto '=https' --tlsv1.2 --fail --location --retry 3 \
+            --output "$tools/actionlint.tar.gz" \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  '"$tools/actionlint.tar.gz" \
+            | sha256sum --check --strict
+          tar -xzf "$tools/actionlint.tar.gz" -C "$tools/actionlint"
+          curl --proto '=https' --tlsv1.2 --fail --location --retry 3 \
+            --output "$tools/shellcheck.tar.xz" \
+            https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
+          echo '8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  '"$tools/shellcheck.tar.xz" \
+            | sha256sum --check --strict
+          tar -xJf "$tools/shellcheck.tar.xz" -C "$tools/shellcheck"
+          echo "$tools/actionlint" >> "$GITHUB_PATH"
+          echo "$tools/shellcheck/shellcheck-v0.11.0" >> "$GITHUB_PATH"
+      - name: Lint workflows and embedded shell
+        run: actionlint -shellcheck=shellcheck
       - name: Verify reusable release trust boundaries
-        run: python3 .github/scripts/verify_library_release.py
+        run: |
+          python3 .github/scripts/verify_library_release.py
+          python3 .github/scripts/verify_go_module_release.py
 
   required:
     name: Required CI
     if: always()
     needs: [syntax]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require repository-file validation
