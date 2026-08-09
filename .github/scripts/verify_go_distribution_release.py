@@ -5,8 +5,8 @@ from pathlib import Path
 
 WORKFLOW = Path(".github/workflows/go-distribution-release.yml")
 DISABLED_PIN = "0000000000000000000000000000000000000000"
-DEVELOPMENT_PIN = "3955349055adcf80bd0b11bb0be2926737faff6f"
-TOOLCHAIN_PIN = "22477e117f4d86b24433c91b22a38d98071a75f7"
+DEVELOPMENT_PIN = "83e0227bb0d12194a8b19cd7da282cd757dc3b3d"
+TOOLCHAIN_PIN = "916b1fee0fc989a4d45d3420f130d7e352f8b51d"
 
 
 def require(condition: bool, message: str) -> None:
