@@ -13,6 +13,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.dont_write_bytecode = True
 BOOTSTRAP_STEP = "      - name: Bootstrap candidate-owned pinned tools without release authority\n"
 OFFLINE_STEP = "      - name: Exercise candidate-owned release checks offline\n"
+DEVELOPMENT_PIN = "3937dca034f88907ea170967194e7f765777ac5a"
+TOOLCHAIN_PIN = "2c0329bdf49a69c342007d95c49db7bda5cf7e19"
+STALE_DEVELOPMENT_PIN = "83e0227bb0d12194a8b19cd7da282cd757dc3b3d"
+STALE_TOOLCHAIN_PIN = "916b1fee0fc989a4d45d3420f130d7e352f8b51d"
 
 
 def fail(message: str) -> None:
@@ -78,12 +82,27 @@ def mutations(text: str) -> tuple[tuple[str, str], ...]:
     )
     weakened_permissions = text[:validate_start] + weakened_validate + text[validate_end:]
 
+    stale_development_pin = replace_once(
+        text,
+        f"TRUSTED_DEVELOPMENT_COMMIT: {DEVELOPMENT_PIN}",
+        f"TRUSTED_DEVELOPMENT_COMMIT: {STALE_DEVELOPMENT_PIN}",
+        "trusted development pin",
+    )
+    stale_toolchain_pin = replace_once(
+        text,
+        f"TRUSTED_TOOLCHAIN_COMMIT: {TOOLCHAIN_PIN}",
+        f"TRUSTED_TOOLCHAIN_COMMIT: {STALE_TOOLCHAIN_PIN}",
+        "trusted toolchain pin",
+    )
+
     return (
         ("missing bootstrap", missing_bootstrap),
         ("network-enabled offline verification", network_enabled_offline),
         ("reordered candidate steps", reordered_candidate_steps),
         ("reordered publication authority", reordered_authority),
         ("weakened candidate permissions", weakened_permissions),
+        ("stale trusted development pin", stale_development_pin),
+        ("stale trusted toolchain pin", stale_toolchain_pin),
     )
 
 
