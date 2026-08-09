@@ -1,5 +1,6 @@
 """Regression checks for the reusable keyless Go-distribution boundary."""
 
+import re
 from pathlib import Path
 
 
@@ -48,16 +49,28 @@ def require_permissions(text: str, name: str, entries: tuple[str, ...]) -> None:
     require(text[start:end] == expected, f"{name} job permissions must be exactly {entries!r}")
 
 
+def require_job_order(text: str, expected: tuple[str, ...]) -> None:
+    jobs = text[text.index("\njobs:") :]
+    actual = tuple(re.findall(r"^  ([a-z_]+):$", jobs, flags=re.MULTILINE))
+    require(actual == expected, f"job order must be exactly {expected!r}, got {actual!r}")
+
+
 def main() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     contract = text[: text.index("\njobs:")]
     validate = job(text, "validate", "render")
     render = job(text, "render", "verify")
-    verify = job(text, "verify", "attest")
+    verify = job(text, "verify", "execute")
+    execute = job(text, "execute", "attest")
     attest = job(text, "attest", "verify_attestation")
     verify_attestation = job(text, "verify_attestation", "publish")
     publish = job(text, "publish", None)
     privileged = render + verify + attest + verify_attestation + publish
+
+    require_job_order(
+        text,
+        ("validate", "render", "verify", "execute", "attest", "verify_attestation", "publish"),
+    )
 
     require("library-release" not in text, "starter release path must remain separate")
     require("go-module-release.yml" not in text, "module release identity must remain separate")
@@ -73,10 +86,10 @@ def main() -> None:
     )
     require("secrets:" not in contract, "distribution workflow must accept no secrets")
     require("secrets: inherit" not in text, "distribution workflow must inherit no secrets")
-    require(text.count("runs-on: ubuntu-24.04") == 6, "all jobs must pin Ubuntu 24.04")
-    require("ubuntu-latest" not in text, "moving runner labels are forbidden")
-    require(text.count("persist-credentials: false") == 6, "all checkouts must discard credentials")
-    require(text.count("cache: false") == 3, "all Go setup actions must disable caches")
+    require(text.count("runs-on: ubuntu-24.04") == 6, "all jobs except execution must pin Ubuntu 24.04")
+    require("ubuntu-latest" not in text and "windows-latest" not in text, "moving runner labels are forbidden")
+    require(text.count("persist-credentials: false") == 7, "all checkouts must discard credentials")
+    require(text.count("cache: false") == 4, "all Go setup actions must disable caches")
     require(text.count("contents: write") == 1, "only publication may write contents")
     require(text.count("id-token: write") == 1, "only attestation may mint OIDC")
     require(text.count("attestations: write") == 1, "only attestation may persist provenance")
@@ -85,6 +98,7 @@ def main() -> None:
     require_permissions(validate, "validate", ("contents: read",))
     require_permissions(render, "render", ("contents: read",))
     require_permissions(verify, "verify", ("contents: read",))
+    require_permissions(execute, "execute", ("contents: read",))
     require_permissions(
         attest,
         "attest",
@@ -151,7 +165,7 @@ def main() -> None:
         "candidate steps must preserve a clean checkout",
     )
     require(
-        text.count("make -C candidate verify-release") == 1,
+        text.count("make -C candidate verify-release\n") == 1,
         "candidate gate must run exactly once",
     )
     require(
@@ -208,7 +222,148 @@ def main() -> None:
     for authority in ("contents: write", "id-token: write", "artifact-metadata: write"):
         require(authority not in verify, f"artifact verification received {authority}")
 
-    require("needs: verify" in attest, "attestation must follow independent verification")
+    require("needs: verify" in execute, "installed-byte execution must follow independent verification")
+    require(
+        "matrix:\n"
+        "        include:\n"
+        "          - runner: ubuntu-24.04\n"
+        "            ephemeral_runner: \"\"\n"
+        "          - runner: windows-2025\n"
+        "            ephemeral_runner: \"1\"" in execute,
+        "execution matrix must be exactly Linux plus ephemeral Windows",
+    )
+    require("fail-fast: false" in execute, "both execution platforms must retain evidence")
+    require("runs-on: ${{ matrix.runner }}" in execute, "execution must use the closed runner matrix")
+    require("environment:" not in execute, "execution must not receive protected-environment authority")
+    require(
+        "ref: ${{ github.sha }}" in execute
+        and "fetch-depth: 0" in execute
+        and "persist-credentials: false" in execute,
+        "execution must check out the exact candidate without credentials",
+    )
+    require(
+        execute.count("actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803") == 1,
+        "execution must use exactly one pinned candidate checkout",
+    )
+    require(
+        "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16" in execute
+        and "go-version: 1.26.5" in execute
+        and "cache: false" in execute,
+        "execution must use exact Go 1.26.5 without shared action caches",
+    )
+    require(
+        execute.count("actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131") == 1
+        and execute.count("name: go-distribution-release-verified") == 1
+        and "path: ${{ runner.temp }}/go-distribution-release-verified" in execute,
+        "execution must download exactly the verifier-owned artifact",
+    )
+    require(
+        'test "$(find "$artifacts" -maxdepth 1 -type f | wc -l)" -eq 9' in execute
+        and 'test "$(find "$artifacts" -type l -print -quit)" = ""' in execute
+        and "-size +536870912c" in execute,
+        "execution must fail closed on the bounded nine-subject artifact set",
+    )
+    require(
+        execute.count("make -C candidate verify-release-artifacts") == 1,
+        "execution must invoke the candidate installed-byte gate exactly once",
+    )
+    require(
+        "SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified" in execute,
+        "execution must pass only the independently verified subject directory",
+    )
+    require(
+        "SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}" in execute,
+        "Windows execution must receive the explicit ephemeral-runner acknowledgement",
+    )
+    require(
+        all(value in execute for value in ('GOPRIVATE: ""', 'GONOPROXY: ""', 'GONOSUMDB: ""')),
+        "installed-byte execution must clear private-module exceptions",
+    )
+    require(
+        "GOPROXY: https" not in execute
+        and "GOSUMDB: sum.golang.org" not in execute
+        and "tools-bootstrap" not in execute,
+        "installed-byte execution must not add a module-network bootstrap",
+    )
+    require(
+        all(
+            token not in execute
+            for token in ("curl ", "wget ", "Invoke-WebRequest", "gh ", "github.token", "secrets.")
+        ),
+        "installed-byte execution must not add network clients, tokens, or secrets",
+    )
+    require(
+        "if: ${{ always() }}" in execute
+        and 'test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""' in execute,
+        "execution must always require the candidate checkout to remain clean",
+    )
+    for authority in ("contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"):
+        require(authority not in execute, f"installed-byte execution received {authority}")
+    require(
+        execute
+        == '''
+  execute:
+    name: Execute independently verified distribution (${{ matrix.runner }})
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            ephemeral_runner: ""
+          - runner: windows-2025
+            ephemeral_runner: "1"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up exact Go toolchain without shared caches
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          cache: false
+          go-version: 1.26.5
+      - name: Receive only independently verified distribution artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: go-distribution-release-verified
+          path: ${{ runner.temp }}/go-distribution-release-verified
+      - name: Require the closed verifier-owned distribution artifact set
+        shell: bash
+        run: |
+          artifacts="$RUNNER_TEMP/go-distribution-release-verified"
+          test -d "$artifacts"
+          test "$(find "$artifacts" -type l -print -quit)" = ""
+          test "$(find "$artifacts" -mindepth 1 -maxdepth 1 ! -type f -print -quit)" = ""
+          test "$(find "$artifacts" -maxdepth 1 -type f | wc -l)" -eq 9
+          test "$(find "$artifacts" -maxdepth 1 -type f -size +536870912c -print -quit)" = ""
+      - name: Execute the candidate-owned installed-byte gate offline
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
+          GOPRIVATE: ""
+          GONOPROXY: ""
+          GONOSUMDB: ""
+          SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}
+          SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified
+        run: make -C candidate verify-release-artifacts
+      - name: Require the candidate checkout to remain clean
+        if: ${{ always() }}
+        shell: bash
+        run: test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""
+''',
+        "installed-byte execution job must remain an exact authority-free closed program",
+    )
+
+    require("needs: [verify, execute]" in attest, "attestation must follow verification and execution")
     require("environment: release-attestation" in attest, "attestation environment is missing")
     require("name: go-distribution-release-verified" in attest, "attestation input is not verified")
     require('test "$(find "$artifacts" -maxdepth 1 -type f | wc -l)" -eq 9' in attest, "closed artifact count is not enforced")

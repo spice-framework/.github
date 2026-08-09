@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.dont_write_bytecode = True
 BOOTSTRAP_STEP = "      - name: Bootstrap candidate-owned pinned tools without release authority\n"
 OFFLINE_STEP = "      - name: Exercise candidate-owned release checks offline\n"
+EXECUTE_JOB = "\n  execute:\n"
+ATTEST_JOB = "\n  attest:\n"
+VERIFY_ATTESTATION_JOB = "\n  verify_attestation:\n"
 DEVELOPMENT_PIN = "a90925bdbd671ed7941af1d3b8c33abeca20dfcb"
 TOOLCHAIN_PIN = "a0ddf9a940cbe72ddc13c7a104418fe50a6f58aa"
 STALE_DEVELOPMENT_PIN = "d0f88db000acb566b72499c736c9134909ee7912"
@@ -106,6 +109,111 @@ def mutations(text: str) -> tuple[tuple[str, str], ...]:
     )
 
 
+def distribution_mutations(text: str) -> tuple[tuple[str, str], ...]:
+    execute_start, attest_start, execute = section(text, EXECUTE_JOB, ATTEST_JOB)
+    _, verify_attestation_start, attest = section(text, ATTEST_JOB, VERIFY_ATTESTATION_JOB)
+
+    missing_execute = text[:execute_start] + text[attest_start:]
+    reordered_execute = (
+        text[:execute_start]
+        + attest
+        + execute
+        + text[verify_attestation_start:]
+    )
+    bypassed_execution = replace_once(
+        text,
+        "    needs: [verify, execute]\n",
+        "    needs: verify\n",
+        "attestation execution dependency",
+    )
+    moving_windows_runner = replace_once(
+        text,
+        "          - runner: windows-2025\n",
+        "          - runner: windows-latest\n",
+        "execution Windows runner",
+    )
+    weakened_execute = replace_once(
+        execute,
+        "    permissions:\n      contents: read\n",
+        "    permissions:\n      contents: write\n",
+        "execution permissions",
+    )
+    weakened_execute_permissions = (
+        text[:execute_start] + weakened_execute + text[attest_start:]
+    )
+    wrong_artifact = replace_once(
+        execute,
+        "          name: go-distribution-release-verified\n",
+        "          name: go-distribution-release-rendered\n",
+        "execution artifact identity",
+    )
+    wrong_execution_artifact = text[:execute_start] + wrong_artifact + text[attest_start:]
+    wrong_subject_count = replace_once(
+        execute,
+        '          test "$(find "$artifacts" -maxdepth 1 -type f | wc -l)" -eq 9\n',
+        '          test "$(find "$artifacts" -maxdepth 1 -type f | wc -l)" -eq 8\n',
+        "execution artifact count",
+    )
+    weakened_subject_count = text[:execute_start] + wrong_subject_count + text[attest_start:]
+    wrong_target = replace_once(
+        execute,
+        "run: make -C candidate verify-release-artifacts\n",
+        "run: make -C candidate verify-release\n",
+        "execution target",
+    )
+    wrong_execution_target = text[:execute_start] + wrong_target + text[attest_start:]
+    missing_windows_acknowledgement = replace_once(
+        execute,
+        '            ephemeral_runner: "1"\n',
+        '            ephemeral_runner: ""\n',
+        "ephemeral Windows acknowledgement",
+    )
+    missing_windows_ack = (
+        text[:execute_start] + missing_windows_acknowledgement + text[attest_start:]
+    )
+    networked_execute = replace_once(
+        execute,
+        '          GOPRIVATE: ""\n',
+        '          GOPRIVATE: ""\n          GOPROXY: https://proxy.golang.org\n',
+        "execution network policy",
+    )
+    network_enabled_execute = text[:execute_start] + networked_execute + text[attest_start:]
+    secret_execute = replace_once(
+        execute,
+        '          GONOSUMDB: ""\n',
+        '          GONOSUMDB: ""\n          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}\n',
+        "execution secret",
+    )
+    secret_enabled_execute = text[:execute_start] + secret_execute + text[attest_start:]
+    clean_step = (
+        "      - name: Require the candidate checkout to remain clean\n"
+        "        if: ${{ always() }}\n"
+        "        shell: bash\n"
+        "        run: test \"$(git -C candidate status --porcelain=v1 --untracked-files=all)\" = \"\"\n"
+    )
+    missing_cleanliness = replace_once(
+        text,
+        clean_step,
+        "",
+        "execution cleanliness",
+    )
+
+    return (
+        ("missing execution job", missing_execute),
+        ("reordered execution job", reordered_execute),
+        ("attestation bypasses execution", bypassed_execution),
+        ("moving Windows execution runner", moving_windows_runner),
+        ("weakened execution permissions", weakened_execute_permissions),
+        ("wrong execution artifact", wrong_execution_artifact),
+        ("weakened execution subject count", weakened_subject_count),
+        ("wrong candidate execution target", wrong_execution_target),
+        ("missing Windows ephemeral acknowledgement", missing_windows_ack),
+        ("network-enabled execution", network_enabled_execute),
+        ("secret-enabled execution", secret_enabled_execute),
+        ("missing execution cleanliness", missing_cleanliness),
+    )
+
+
 def require_rejected(module: ModuleType, path: Path, label: str, text: str) -> None:
     path.write_text(text, encoding="utf-8")
     module.WORKFLOW = path
@@ -129,7 +237,10 @@ def main() -> None:
             if not workflow.is_absolute():
                 workflow = ROOT / workflow
             original = workflow.read_text(encoding="utf-8")
-            for label, mutated in mutations(original):
+            cases = mutations(original)
+            if validator_path.name == "verify_go_distribution_release.py":
+                cases += distribution_mutations(original)
+            for label, mutated in cases:
                 require_rejected(
                     module,
                     temporary_root / f"{validator_path.stem}-{label.replace(' ', '-')}.yml",

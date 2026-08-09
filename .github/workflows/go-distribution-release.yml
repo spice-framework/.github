@@ -263,9 +263,67 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  execute:
+    name: Execute independently verified distribution (${{ matrix.runner }})
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            ephemeral_runner: ""
+          - runner: windows-2025
+            ephemeral_runner: "1"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up exact Go toolchain without shared caches
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          cache: false
+          go-version: 1.26.5
+      - name: Receive only independently verified distribution artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: go-distribution-release-verified
+          path: ${{ runner.temp }}/go-distribution-release-verified
+      - name: Require the closed verifier-owned distribution artifact set
+        shell: bash
+        run: |
+          artifacts="$RUNNER_TEMP/go-distribution-release-verified"
+          test -d "$artifacts"
+          test "$(find "$artifacts" -type l -print -quit)" = ""
+          test "$(find "$artifacts" -mindepth 1 -maxdepth 1 ! -type f -print -quit)" = ""
+          test "$(find "$artifacts" -maxdepth 1 -type f | wc -l)" -eq 9
+          test "$(find "$artifacts" -maxdepth 1 -type f -size +536870912c -print -quit)" = ""
+      - name: Execute the candidate-owned installed-byte gate offline
+        shell: bash
+        env:
+          GOCACHE: ${{ runner.temp }}/candidate-go-build-cache
+          GOMODCACHE: ${{ runner.temp }}/candidate-go-module-cache
+          GOPRIVATE: ""
+          GONOPROXY: ""
+          GONOSUMDB: ""
+          SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}
+          SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified
+        run: make -C candidate verify-release-artifacts
+      - name: Require the candidate checkout to remain clean
+        if: ${{ always() }}
+        shell: bash
+        run: test "$(git -C candidate status --porcelain=v1 --untracked-files=all)" = ""
+
   attest:
     name: Keylessly attest independently verified distribution artifacts
-    needs: verify
+    needs: [verify, execute]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: release-attestation

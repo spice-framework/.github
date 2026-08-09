@@ -105,9 +105,18 @@ vendor; it builds the archive-materialized
 Git tree offline and never the caller worktree. It then re-lists untrusted
 renderer input and copies only its profile's closed artifact set into a new
 verifier-owned directory: four files for modules or nine files for the current
-six-target distribution policy. Only those copied bytes cross into
-attestation. Candidate-owned
-tools run only in the earlier uncredentialed gate. The keyless verifier requires
+six-target distribution policy. Generic modules pass those copied bytes
+directly toward attestation. Distributions first pass the verifier-owned
+nine-subject directory through a separate installed-byte execution matrix on
+fixed Linux and Windows GitHub-hosted runners. That matrix checks out the exact
+candidate commit, runs only its documented `verify-release-artifacts` target
+with module networking disabled, always requires a clean checkout, and has only
+`contents:read`: it receives no secret, protected environment, OIDC identity,
+attestation authority, or publication authority. Windows execution additionally
+requires the candidate's explicit disposable-runner acknowledgement.
+Attestation depends on both the independent verifier and every execution leg.
+No bytes produced by candidate execution replace the verifier-owned subjects.
+The keyless verifier requires
 the public GitHub OIDC issuer, exact caller repository, exact source commit and
 tag ref, organization
 reusable-workflow path and commit, and a GitHub-hosted runner. The caller must

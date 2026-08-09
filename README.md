@@ -123,8 +123,16 @@ Binary distributions use the separate `go-distribution-release.yml` workflow.
 It pins the same reviewed commits but invokes the profile-specific central
 distribution renderer and independent distribution verifier. The closed
 `go-distribution-v1` policy currently authenticates six target archives,
-release metadata, an SPDX SBOM, and checksums before keyless attestation. It
-never broadens the module or starter release contracts.
+release metadata, an SPDX SBOM, and checksums. Before keyless attestation, an
+authority-free matrix checks out the exact candidate commit and executes its
+installed-byte acceptance target against only that verifier-owned nine-subject
+directory on `ubuntu-24.04` and `windows-2025`. The Windows leg explicitly
+acknowledges its disposable hosted-runner boundary. This matrix has only
+`contents:read`, receives no secret or protected environment, runs with module
+network access disabled, and must leave the candidate checkout clean.
+Attestation depends on both independent verification and both execution legs.
+This distribution-only execution proof never broadens the module or starter
+release contracts.
 
 Each caller pins this repository by full commit and grants only the
 ceiling that the called workflow narrows per job:
