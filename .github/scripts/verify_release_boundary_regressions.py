@@ -16,10 +16,10 @@ OFFLINE_STEP = "      - name: Exercise candidate-owned release checks offline\n"
 EXECUTE_JOB = "\n  execute:\n"
 ATTEST_JOB = "\n  attest:\n"
 VERIFY_ATTESTATION_JOB = "\n  verify_attestation:\n"
-DEVELOPMENT_PIN = "a15d9406dcf33fddea29830491f5cdbcc1f4be47"
-TOOLCHAIN_PIN = "7d9f7d1d1659e0ddbc5c604666527e68de2f184c"
-STALE_DEVELOPMENT_PIN = "a90925bdbd671ed7941af1d3b8c33abeca20dfcb"
-STALE_TOOLCHAIN_PIN = "a0ddf9a940cbe72ddc13c7a104418fe50a6f58aa"
+DEVELOPMENT_PIN = "ed7e58a7493a44ba60df881b9bf9b24edcbc99ee"
+TOOLCHAIN_PIN = "01478163ce5282f9b71d7da19016f721b911f909"
+STALE_DEVELOPMENT_PIN = "a15d9406dcf33fddea29830491f5cdbcc1f4be47"
+STALE_TOOLCHAIN_PIN = "7d9f7d1d1659e0ddbc5c604666527e68de2f184c"
 
 
 def fail(message: str) -> None:

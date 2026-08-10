@@ -26,8 +26,8 @@ env:
   RELEASE_PROFILE: go-module-v1
   # These immutable, independently reviewed commits own distinct halves of the
   # release boundary. Changing either pin is a security-sensitive workflow edit.
-  TRUSTED_DEVELOPMENT_COMMIT: a15d9406dcf33fddea29830491f5cdbcc1f4be47
-  TRUSTED_TOOLCHAIN_COMMIT: 7d9f7d1d1659e0ddbc5c604666527e68de2f184c
+  TRUSTED_DEVELOPMENT_COMMIT: ed7e58a7493a44ba60df881b9bf9b24edcbc99ee
+  TRUSTED_TOOLCHAIN_COMMIT: 01478163ce5282f9b71d7da19016f721b911f909
 
 concurrency:
   group: go-module-release-${{ github.repository }}-${{ github.ref }}
