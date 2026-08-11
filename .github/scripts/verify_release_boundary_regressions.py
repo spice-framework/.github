@@ -162,6 +162,35 @@ def distribution_mutations(text: str) -> tuple[tuple[str, str], ...]:
         "execution target",
     )
     wrong_execution_target = text[:execute_start] + wrong_target + text[attest_start:]
+    legacy_environment_names = replace_once(
+        execute,
+        "          SPICE_DISTRIBUTION_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}\n"
+        "          SPICE_DISTRIBUTION_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified\n",
+        "          SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}\n"
+        "          SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified\n",
+        "legacy installed-execution environment names",
+    )
+    old_environment_contract = (
+        text[:execute_start] + legacy_environment_names + text[attest_start:]
+    )
+    missing_ephemeral_name = replace_once(
+        execute,
+        "          SPICE_DISTRIBUTION_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}\n",
+        "",
+        "generic ephemeral-runner environment name",
+    )
+    missing_generic_ephemeral_name = (
+        text[:execute_start] + missing_ephemeral_name + text[attest_start:]
+    )
+    missing_artifact_name = replace_once(
+        execute,
+        "          SPICE_DISTRIBUTION_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified\n",
+        "",
+        "generic verified-artifact environment name",
+    )
+    missing_generic_artifact_name = (
+        text[:execute_start] + missing_artifact_name + text[attest_start:]
+    )
     missing_windows_acknowledgement = replace_once(
         execute,
         '            ephemeral_runner: "1"\n',
@@ -207,6 +236,9 @@ def distribution_mutations(text: str) -> tuple[tuple[str, str], ...]:
         ("wrong execution artifact", wrong_execution_artifact),
         ("weakened execution subject count", weakened_subject_count),
         ("wrong candidate execution target", wrong_execution_target),
+        ("legacy installed-execution environment names", old_environment_contract),
+        ("missing generic ephemeral-runner environment name", missing_generic_ephemeral_name),
+        ("missing generic verified-artifact environment name", missing_generic_artifact_name),
         ("missing Windows ephemeral acknowledgement", missing_windows_ack),
         ("network-enabled execution", network_enabled_execute),
         ("secret-enabled execution", secret_enabled_execute),

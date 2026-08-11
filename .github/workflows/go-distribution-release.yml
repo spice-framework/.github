@@ -313,8 +313,8 @@ jobs:
           GOPRIVATE: ""
           GONOPROXY: ""
           GONOSUMDB: ""
-          SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}
-          SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified
+          SPICE_DISTRIBUTION_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}
+          SPICE_DISTRIBUTION_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified
         run: make -C candidate verify-release-artifacts
       - name: Require the candidate checkout to remain clean
         if: ${{ always() }}

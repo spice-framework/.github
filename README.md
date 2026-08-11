@@ -126,10 +126,14 @@ distribution renderer and independent distribution verifier. The closed
 release metadata, an SPDX SBOM, and checksums. Before keyless attestation, an
 authority-free matrix checks out the exact candidate commit and executes its
 installed-byte acceptance target against only that verifier-owned nine-subject
-directory on `ubuntu-24.04` and `windows-2025`. The Windows leg explicitly
-acknowledges its disposable hosted-runner boundary. This matrix has only
-`contents:read`, receives no secret or protected environment, runs with module
-network access disabled, and must leave the candidate checkout clean.
+directory on `ubuntu-24.04` and `windows-2025`, passed only through
+`SPICE_DISTRIBUTION_VERIFIED_ARTIFACT_DIR`. The Windows leg explicitly
+acknowledges its disposable hosted-runner boundary through
+`SPICE_DISTRIBUTION_EPHEMERAL_RUNNER=1`. These generic names are the complete
+installed-execution environment contract; agent-specific aliases are rejected.
+This matrix has only `contents:read`, receives no secret or protected
+environment, runs with module network access disabled, and must leave the
+candidate checkout clean.
 Attestation depends on both independent verification and both execution legs.
 This distribution-only execution proof never broadens the module or starter
 release contracts.

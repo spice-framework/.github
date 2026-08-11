@@ -268,12 +268,17 @@ def main() -> None:
         "execution must invoke the candidate installed-byte gate exactly once",
     )
     require(
-        "SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified" in execute,
+        "SPICE_DISTRIBUTION_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified" in execute,
         "execution must pass only the independently verified subject directory",
     )
     require(
-        "SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}" in execute,
+        "SPICE_DISTRIBUTION_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}" in execute,
         "Windows execution must receive the explicit ephemeral-runner acknowledgement",
+    )
+    require(
+        "SPICE_AGENT_EPHEMERAL_RUNNER" not in execute
+        and "SPICE_AGENT_VERIFIED_ARTIFACT_DIR" not in execute,
+        "installed-byte execution must not retain agent-specific environment names",
     )
     require(
         all(value in execute for value in ('GOPRIVATE: ""', 'GONOPROXY: ""', 'GONOSUMDB: ""')),
@@ -352,8 +357,8 @@ def main() -> None:
           GOPRIVATE: ""
           GONOPROXY: ""
           GONOSUMDB: ""
-          SPICE_AGENT_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}
-          SPICE_AGENT_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified
+          SPICE_DISTRIBUTION_EPHEMERAL_RUNNER: ${{ matrix.ephemeral_runner }}
+          SPICE_DISTRIBUTION_VERIFIED_ARTIFACT_DIR: ${{ runner.temp }}/go-distribution-release-verified
         run: make -C candidate verify-release-artifacts
       - name: Require the candidate checkout to remain clean
         if: ${{ always() }}
