@@ -23,8 +23,8 @@ env:
   GOTOOLCHAIN: local
   GOWORK: "off"
   RELEASE_PROFILE: go-distribution-v1
-  TRUSTED_DEVELOPMENT_COMMIT: 87b5d8c3d34ea61c4f293614f364c54d097db469
-  TRUSTED_TOOLCHAIN_COMMIT: a3df19e40b86686654ab86e521730686f392c50f
+  TRUSTED_DEVELOPMENT_COMMIT: 7c847540f9a9c10b38d5fb43159d406b50a0eedf
+  TRUSTED_TOOLCHAIN_COMMIT: b824dd908dacbfda9d9bb986d5e7d5f3169bbe84
 
 concurrency:
   group: go-distribution-release-${{ github.repository }}-${{ github.ref }}
