@@ -67,6 +67,9 @@ jobs:
 
       - name: Verify static project contract and deterministic model
         env:
+          GOTOOLCHAIN: local
+          GOPROXY: "off"
+          GOSUMDB: "off"
           PROJECT_ROOT: ${{ github.workspace }}/project/${{ inputs.module-directory }}
           SPICE: ${{ runner.temp }}/spice
         shell: bash
@@ -77,6 +80,10 @@ jobs:
           cmp "$RUNNER_TEMP/model-first.json" "$RUNNER_TEMP/model-second.json"
           "$SPICE" project metadata --directory "$PROJECT_ROOT" --check
           "$SPICE" sync --directory "$PROJECT_ROOT" --check
+          "$SPICE" view verify --directory "$PROJECT_ROOT" --format=json > "$RUNNER_TEMP/view-verification.json"
+          go -C "$PROJECT_ROOT" build ./...
+          go -C "$PROJECT_ROOT" test ./...
+          go -C "$PROJECT_ROOT" vet ./...
           git -C "$PROJECT_ROOT" diff --exit-code -- settings.spice.go build.spice.go go.mod go.sum spice.module.json
 
   projected-shell:
@@ -91,17 +98,20 @@ jobs:
             os: ubuntu-24.04
             shell-command: bash
             shell-argument: -lc
-            proof: 'test "$PWD" = "$SPICE_WORKSPACE_ROOT" && test -d src/main/go && go test ./...'
+            proof: 'test "$PWD" = "$SPICE_WORKSPACE_ROOT" && test -d src/main/go && test ! -e internal && go build ./... && go test ./... && go vet ./... && go build . && go test . && go vet . && (cd src/main/go && go build . && go test . && go vet .) && spice view verify --format=json && spice project model --format=json >/dev/null && ! spice project model --format=json | grep -q ''"canonicalPath"'' && git status --short >/dev/null && git diff --exit-code'
+            write-proof: 'view_file=$(find src/main/go -type f -name ''*.go'' | LC_ALL=C sort | head -n 1) && test -n "$view_file" && printf ''\nvar __spice_view_diagnostic =\n'' >> "$view_file" && if diagnostic=$(go test ./... 2>&1); then echo ''invalid View edit unexpectedly compiled'' >&2; exit 1; fi && printf ''%s\n'' "$diagnostic" | grep -F "$view_file" && git diff -- "$view_file" | grep -F "$view_file" && git restore -- "$view_file" && git diff --exit-code -- "$view_file"'
           - name: PowerShell
             os: windows-2025
             shell-command: pwsh
             shell-argument: -Command
-            proof: 'if ((Get-Location).Path -ne $env:SPICE_WORKSPACE_ROOT) { exit 1 }; if (-not (Test-Path src/main/go)) { exit 1 }; go test ./...'
+            proof: 'if ((Get-Location).Path -ne $env:SPICE_WORKSPACE_ROOT) { exit 1 }; if (-not (Test-Path src/main/go) -or (Test-Path internal)) { exit 1 }; go build ./...; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; go test ./...; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; go vet ./...; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; go build .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; go test .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; go vet .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Push-Location src/main/go; go build .; if ($LASTEXITCODE -ne 0) { $code = $LASTEXITCODE; Pop-Location; exit $code }; go test .; if ($LASTEXITCODE -ne 0) { $code = $LASTEXITCODE; Pop-Location; exit $code }; go vet .; if ($LASTEXITCODE -ne 0) { $code = $LASTEXITCODE; Pop-Location; exit $code }; Pop-Location; spice view verify --format=json; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $model = spice project model --format=json; if ($LASTEXITCODE -ne 0 -or ($model -match ''"canonicalPath"'')) { exit 1 }; git status --short | Out-Null; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --exit-code'
+            write-proof: '$file = Get-ChildItem src/main/go -Recurse -Filter *.go | Sort-Object FullName | Select-Object -First 1; if ($null -eq $file) { exit 1 }; $viewFile = [IO.Path]::GetRelativePath((Get-Location).Path, $file.FullName).Replace(''\'', ''/''); Add-Content -LiteralPath $file.FullName -Value "`nvar __spice_view_diagnostic ="; $diagnostic = go test ./... 2>&1 | Out-String; if ($LASTEXITCODE -eq 0 -or -not $diagnostic.Contains($viewFile)) { Write-Error "Go diagnostic did not use $viewFile"; exit 1 }; $diff = git diff -- $viewFile | Out-String; if ($LASTEXITCODE -ne 0 -or -not $diff.Contains($viewFile)) { Write-Error "Git diff did not use $viewFile"; exit 1 }; git restore -- $viewFile; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --exit-code -- $viewFile'
           - name: Zsh
             os: macos-15
             shell-command: zsh
             shell-argument: -lc
-            proof: 'test "$PWD" = "$SPICE_WORKSPACE_ROOT" && test -d src/main/go && go test ./...'
+            proof: 'test "$PWD" = "$SPICE_WORKSPACE_ROOT" && test -d src/main/go && test ! -e internal && go build ./... && go test ./... && go vet ./... && go build . && go test . && go vet . && (cd src/main/go && go build . && go test . && go vet .) && spice view verify --format=json && spice project model --format=json >/dev/null && ! spice project model --format=json | grep -q ''"canonicalPath"'' && git status --short >/dev/null && git diff --exit-code'
+            write-proof: 'view_file=$(find src/main/go -type f -name ''*.go'' | LC_ALL=C sort | head -n 1) && test -n "$view_file" && printf ''\nvar __spice_view_diagnostic =\n'' >> "$view_file" && if diagnostic=$(go test ./... 2>&1); then echo ''invalid View edit unexpectedly compiled'' >&2; exit 1; fi && printf ''%s\n'' "$diagnostic" | grep -F "$view_file" && git diff -- "$view_file" | grep -F "$view_file" && git restore -- "$view_file" && git diff --exit-code -- "$view_file"'
     steps:
       - name: Check out project
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -146,6 +156,19 @@ jobs:
           suffix=""
           if [[ "$RUNNER_OS" = Windows ]]; then suffix=".exe"; fi
           "$RUNNER_TEMP/spice$suffix" shell -- "$SPICE_SHELL_COMMAND" "$SPICE_SHELL_ARGUMENT" "$SPICE_SHELL_PROOF"
+
+      - name: Exercise writable View diagnostics and Git restore
+        working-directory: project/${{ inputs.module-directory }}
+        shell: bash
+        env:
+          SPICE_SHELL_COMMAND: ${{ matrix.shell-command }}
+          SPICE_SHELL_ARGUMENT: ${{ matrix.shell-argument }}
+          SPICE_SHELL_PROOF: ${{ matrix.write-proof }}
+        run: |
+          suffix=""
+          if [[ "$RUNNER_OS" = Windows ]]; then suffix=".exe"; fi
+          "$RUNNER_TEMP/spice$suffix" shell -- "$SPICE_SHELL_COMMAND" "$SPICE_SHELL_ARGUMENT" "$SPICE_SHELL_PROOF"
+          git diff --exit-code
 
   required:
     name: Required Spice project CI

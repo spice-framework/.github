@@ -27,10 +27,22 @@ caller supplies one reviewed 40-character Toolchain commit. The workflow
 builds that CLI from committed vendor contents with module networking disabled,
 statically validates `settings.spice.go` and `build.spice.go`, compares two
 Project Model serializations byte-for-byte, checks `spice.module.json` and
-`spice sync --check`, and requires no configuration execution. Its separate
+`spice sync --check`, verifies View architecture, and runs ordinary physical
+`go build`, `go test`, and `go vet` with module networking disabled. It requires
+no configuration execution. Its separate
 matrix enters the materialized View through installed Bash, PowerShell, and Zsh
-and runs the project tests through the broker. Optional FUSE and ProjFS provider
-jobs are deliberately outside this required portable gate.
+and runs the same build, test, vet, and View-architecture checks through the
+broker. It exercises aggregate `go build .`, `go test .`, and `go vet .` from
+both the projected workspace and `src/main/go` roots. It also proves that the
+canonical `internal` tree is absent, brokered
+Project Model output is agent-safe, and Git status/diff work inside the View.
+The writable pass edits one ordinary View source with an intentional syntax
+error, requires the Go diagnostic and Git diff to name only that View path,
+restores it through brokered `git restore`, and then proves the physical
+checkout is unchanged after the session exits.
+Generated-source freshness remains in each repository's target-aware gate.
+Optional FUSE and ProjFS provider jobs are deliberately outside this required
+portable gate.
 
 Documentation contributors pin `docs-source.yml` by full commit and supply a
 full immutable `spice-framework/docs` commit. The uncredentialed job validates
