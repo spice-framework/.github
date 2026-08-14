@@ -1,0 +1,163 @@
+name: Reusable Spice project verification
+
+on:
+  workflow_call:
+    inputs:
+      toolchain-commit:
+        description: Immutable full Toolchain commit used to validate the project.
+        required: true
+        type: string
+      go-version:
+        description: Exact Go patch release.
+        required: false
+        type: string
+        default: 1.26.5
+      module-directory:
+        description: Repository-relative Spice project root.
+        required: false
+        type: string
+        default: .
+
+permissions:
+  contents: read
+
+jobs:
+  project-contract:
+    name: Project Model contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Validate immutable Toolchain commit
+        env:
+          TOOLCHAIN_COMMIT: ${{ inputs.toolchain-commit }}
+        shell: bash
+        run: |
+          if [[ ! "$TOOLCHAIN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "toolchain-commit must be a lowercase full Git commit" >&2
+            exit 1
+          fi
+
+      - name: Check out project
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: project
+          persist-credentials: false
+
+      - name: Check out immutable Toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: spice-framework/toolchain
+          ref: ${{ inputs.toolchain-commit }}
+          path: toolchain
+          persist-credentials: false
+
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
+
+      - name: Build reviewed Spice CLI offline
+        working-directory: toolchain
+        env:
+          GOTOOLCHAIN: local
+          GOPROXY: "off"
+          GOSUMDB: "off"
+        run: go build -mod=vendor -trimpath -o "$RUNNER_TEMP/spice" ./cmd/spice
+
+      - name: Verify static project contract and deterministic model
+        env:
+          PROJECT_ROOT: ${{ github.workspace }}/project/${{ inputs.module-directory }}
+          SPICE: ${{ runner.temp }}/spice
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$SPICE" project model --directory "$PROJECT_ROOT" --format=json > "$RUNNER_TEMP/model-first.json"
+          "$SPICE" project model --directory "$PROJECT_ROOT" --format=json > "$RUNNER_TEMP/model-second.json"
+          cmp "$RUNNER_TEMP/model-first.json" "$RUNNER_TEMP/model-second.json"
+          "$SPICE" project metadata --directory "$PROJECT_ROOT" --check
+          "$SPICE" sync --directory "$PROJECT_ROOT" --check
+          git -C "$PROJECT_ROOT" diff --exit-code -- settings.spice.go build.spice.go go.mod go.sum spice.module.json
+
+  projected-shell:
+    name: ${{ matrix.name }} materialized View
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Bash
+            os: ubuntu-24.04
+            shell-command: bash
+            shell-argument: -lc
+            proof: 'test "$PWD" = "$SPICE_WORKSPACE_ROOT" && test -d src/main/go && go test ./...'
+          - name: PowerShell
+            os: windows-2025
+            shell-command: pwsh
+            shell-argument: -Command
+            proof: 'if ((Get-Location).Path -ne $env:SPICE_WORKSPACE_ROOT) { exit 1 }; if (-not (Test-Path src/main/go)) { exit 1 }; go test ./...'
+          - name: Zsh
+            os: macos-15
+            shell-command: zsh
+            shell-argument: -lc
+            proof: 'test "$PWD" = "$SPICE_WORKSPACE_ROOT" && test -d src/main/go && go test ./...'
+    steps:
+      - name: Check out project
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: project
+          persist-credentials: false
+
+      - name: Check out immutable Toolchain
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: spice-framework/toolchain
+          ref: ${{ inputs.toolchain-commit }}
+          path: toolchain
+          persist-credentials: false
+
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
+
+      - name: Build reviewed Spice CLI offline
+        working-directory: toolchain
+        shell: bash
+        env:
+          GOTOOLCHAIN: local
+          GOPROXY: "off"
+          GOSUMDB: "off"
+        run: |
+          suffix=""
+          if [[ "$RUNNER_OS" = Windows ]]; then suffix=".exe"; fi
+          go build -mod=vendor -trimpath -o "$RUNNER_TEMP/spice$suffix" ./cmd/spice
+
+      - name: Exercise installed shell inside Spice View
+        working-directory: project/${{ inputs.module-directory }}
+        shell: bash
+        env:
+          SPICE_SHELL_COMMAND: ${{ matrix.shell-command }}
+          SPICE_SHELL_ARGUMENT: ${{ matrix.shell-argument }}
+          SPICE_SHELL_PROOF: ${{ matrix.proof }}
+        run: |
+          suffix=""
+          if [[ "$RUNNER_OS" = Windows ]]; then suffix=".exe"; fi
+          "$RUNNER_TEMP/spice$suffix" shell -- "$SPICE_SHELL_COMMAND" "$SPICE_SHELL_ARGUMENT" "$SPICE_SHELL_PROOF"
+
+  required:
+    name: Required Spice project CI
+    if: always()
+    needs: [project-contract, projected-shell]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require contract and projected-shell jobs
+        env:
+          CONTRACT_RESULT: ${{ needs.project-contract.result }}
+          SHELL_RESULT: ${{ needs.projected-shell.result }}
+        run: |
+          test "$CONTRACT_RESULT" = success
+          test "$SHELL_RESULT" = success

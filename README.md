@@ -11,6 +11,7 @@ least-privilege verification workflows for Spice repositories.
 - Contribution contract: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Security reporting: [`SECURITY.md`](SECURITY.md)
 - Reusable Go gate: [`.github/workflows/go-verify.yml`](.github/workflows/go-verify.yml)
+- Reusable Spice Project Model and projected-shell gate: [`.github/workflows/spice-project-verify.yml`](.github/workflows/spice-project-verify.yml)
 - Reusable Gradle gate: [`.github/workflows/gradle-verify.yml`](.github/workflows/gradle-verify.yml)
 - Reusable signed library release: [`.github/workflows/library-release.yml`](.github/workflows/library-release.yml)
 - Reusable keyless Go-module release: [`.github/workflows/go-module-release.yml`](.github/workflows/go-module-release.yml)
@@ -20,6 +21,16 @@ least-privilege verification workflows for Spice repositories.
 Third-party actions are pinned to immutable commits. Repository-specific gates
 remain responsible for product integration, generated freshness, real-service,
 editor UI, compatibility, and release evidence.
+
+`spice-project-verify.yml` is the cross-platform project-structure gate. A
+caller supplies one reviewed 40-character Toolchain commit. The workflow
+builds that CLI from committed vendor contents with module networking disabled,
+statically validates `settings.spice.go` and `build.spice.go`, compares two
+Project Model serializations byte-for-byte, checks `spice.module.json` and
+`spice sync --check`, and requires no configuration execution. Its separate
+matrix enters the materialized View through installed Bash, PowerShell, and Zsh
+and runs the project tests through the broker. Optional FUSE and ProjFS provider
+jobs are deliberately outside this required portable gate.
 
 Documentation contributors pin `docs-source.yml` by full commit and supply a
 full immutable `spice-framework/docs` commit. The uncredentialed job validates
